@@ -1,0 +1,9 @@
+anthropic
+google-generativeai
+mypy
+openai
+pandas
+pandas-stubs
+pre-commit
+ruff
+tqdm
