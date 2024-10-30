@@ -1,6 +1,8 @@
 anthropic
+gensim
 google-generativeai
 mypy
+networkx
 openai
 pandas
 pandas-stubs
