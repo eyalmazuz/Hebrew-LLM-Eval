@@ -27,7 +27,7 @@ idx2source = {
 }
 
 os.environ["WANDB_PROJECT"] = "Mafat-Coherence"
-os.environ["WANDB_LOG_MODEL"] = "checkpoint"
+os.environ["WANDB_LOG_MODEL"] = "end"
 
 
 def load_data(path: str) -> list[dict[str, Any]]:
@@ -169,7 +169,7 @@ def compute_metrics(eval_pred: EvalPrediction):
         if isinstance(eval_pred.predictions, tuple)
         else eval_pred.predictions
     )
-    probs = torch.nn.functional.softmax(torch.from_numpy(preds))
+    probs = torch.nn.functional.log_softmax(torch.from_numpy(preds), dim=1)
     y_pred = np.argmax(probs, axis=1)
     y_true = eval_pred.label_ids
 
@@ -186,7 +186,10 @@ def main(args: argparse.Namespace) -> None:
     print(f"Loading data from {args.input_path}")
     summaries = load_data(args.input_path)
 
-    source_type = os.environ.get("SLURM_ARRAY_TASK_ID", args.source_type)
+    if "SLURM_ARRAY_TASK_ID" in os.environ:
+        source_type = idx2source[int(os.environ["SLURM_ARRAY_TASK_ID"])]
+    else:
+        source_type = args.source_type
 
     if source_type is None and args.split_type.lower() == "source":
         raise ValueError(
@@ -229,16 +232,21 @@ def main(args: argparse.Namespace) -> None:
     print("Creating training args")
     data_collator = DataCollatorWithPadding(tokenizer)
 
+    name = (
+        f"{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_"
+        f"{args.block_size}_include_summaries_{args.include_summaries}"
+    ).replace("/", "_")
+
     train_args = TrainingArguments(
-        output_dir=args.save_path,
-        eval_strategy="epoch",
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
+        output_dir=f"{args.save_path}/{name}",
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
         weight_decay=0.1,
         max_grad_norm=1.0,
-        num_train_epochs=3,
+        num_train_epochs=50,
         lr_scheduler_type="cosine",
         # warmup_ratio=0.2,
+        eval_strategy="epoch",
         logging_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=3,
@@ -254,7 +262,7 @@ def main(args: argparse.Namespace) -> None:
         dataloader_pin_memory=True,
         torch_compile=True,
         report_to="wandb",
-        run_name=f"{args.model}_{args.split_type}_{args.source_type}".replace("/", "_"),
+        run_name=name,
     )
 
     trainer = Trainer(
