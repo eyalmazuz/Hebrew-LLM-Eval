@@ -226,6 +226,8 @@ def main(args: argparse.Namespace) -> None:
         attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
         num_labels=1,
+        max_position_embeddings=8192,
+        ignore_mismatched_sizes=True,
     )
 
     print("Creating training args")
