@@ -158,26 +158,9 @@ class SummaryDataset(Dataset):
         label = self.labels[idx]
 
         encoding = self.tokenizer(text, padding=True, truncation=True, max_length=8192)
-        encoding["label"] = float(label)
+        encoding["label"] = label
 
         return encoding
-
-
-def multi_label_metrics(predictions, labels, threshold=0.5):
-    # first, apply sigmoid on predictions which are of shape (batch_size, num_labels)
-    sigmoid = torch.nn.Sigmoid()
-    probs = sigmoid(torch.Tensor(predictions))
-    # next, use threshold to turn them into integer predictions
-    y_pred = np.zeros(probs.shape)
-    y_pred[np.where(probs >= threshold)] = 1
-    # finally, compute metrics
-    y_true = labels
-    f1_micro_average = f1_score(y_true=y_true, y_pred=y_pred)
-    roc_auc = roc_auc_score(y_true, probs)
-    accuracy = accuracy_score(y_true, y_pred)
-    # return as dictionary
-    metrics = {"f1": f1_micro_average, "roc_auc": roc_auc, "accuracy": accuracy}
-    return metrics
 
 
 def compute_metrics(eval_pred: EvalPrediction):
@@ -186,8 +169,17 @@ def compute_metrics(eval_pred: EvalPrediction):
         if isinstance(eval_pred.predictions, tuple)
         else eval_pred.predictions
     )
-    result = multi_label_metrics(predictions=preds, labels=eval_pred.label_ids)
-    return result
+    probs = torch.nn.functional.softmax(torch.from_numpy(preds))
+    y_pred = np.argmax(probs, axis=1)
+    y_true = eval_pred.label_ids
+
+    f1 = f1_score(y_true=y_true, y_pred=y_pred)
+    roc_auc = roc_auc_score(y_true, probs[:, 1])
+    accuracy = accuracy_score(y_true, y_pred)
+
+    metrics = {"f1": f1, "roc_auc": roc_auc, "accuracy": accuracy}
+
+    return metrics
 
 
 def main(args: argparse.Namespace) -> None:
@@ -228,9 +220,10 @@ def main(args: argparse.Namespace) -> None:
         args.model,
         attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
-        num_labels=1,
+        num_labels=2,
         max_position_embeddings=8192,
         ignore_mismatched_sizes=True,
+        problem_type="single_label_classification",
     )
 
     print("Creating training args")
@@ -239,20 +232,22 @@ def main(args: argparse.Namespace) -> None:
     train_args = TrainingArguments(
         output_dir=args.save_path,
         eval_strategy="epoch",
-        per_device_train_batch_size=512,
-        per_device_eval_batch_size=512,
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=4,
         weight_decay=0.1,
         max_grad_norm=1.0,
-        num_train_epochs=10,
+        num_train_epochs=3,
         lr_scheduler_type="cosine",
-        warmup_ratio=0.2,
+        # warmup_ratio=0.2,
         logging_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=3,
         bf16=True,
         tf32=True,
         bf16_full_eval=True,
-        load_best_model_at_end=True,
+        # gradient_accumulation_steps=32,
+        # gradient_checkpointing=True,
+        # load_best_model_at_end=True,
         metric_for_best_model="loss",  # Change to accuracy or any other metric
         greater_is_better=False,  # Need to change to True when using accuracy
         optim="adamw_torch_fused",
