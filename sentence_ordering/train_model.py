@@ -157,7 +157,7 @@ class SummaryDataset(Dataset):
         text = self.texts[idx]
         label = self.labels[idx]
 
-        encoding = self.tokenizer(text, truncation=True)
+        encoding = self.tokenizer(text, padding=True, truncation=True, max_length=8192)
         encoding["label"] = float(label)
 
         return encoding
@@ -173,7 +173,7 @@ def multi_label_metrics(predictions, labels, threshold=0.5):
     # finally, compute metrics
     y_true = labels
     f1_micro_average = f1_score(y_true=y_true, y_pred=y_pred)
-    roc_auc = roc_auc_score(y_true, y_pred)
+    roc_auc = roc_auc_score(y_true, probs)
     accuracy = accuracy_score(y_true, y_pred)
     # return as dictionary
     metrics = {"f1": f1_micro_average, "roc_auc": roc_auc, "accuracy": accuracy}
@@ -220,6 +220,9 @@ def main(args: argparse.Namespace) -> None:
     train_dataset = SummaryDataset(train_data, tokenizer)
     test_dataset = SummaryDataset(test_data, tokenizer)
 
+    print(f"Train Dataset size: {len(train_dataset)}")
+    print(f"Test Dataset size: {len(test_dataset)}")
+
     print(f"Loading model {args.model}")
     model = AutoModelForSequenceClassification.from_pretrained(
         args.model,
@@ -236,8 +239,8 @@ def main(args: argparse.Namespace) -> None:
     train_args = TrainingArguments(
         output_dir=args.save_path,
         eval_strategy="epoch",
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
+        per_device_train_batch_size=512,
+        per_device_eval_batch_size=512,
         weight_decay=0.1,
         max_grad_norm=1.0,
         num_train_epochs=10,
@@ -247,7 +250,7 @@ def main(args: argparse.Namespace) -> None:
         save_strategy="epoch",
         save_total_limit=3,
         bf16=True,
-        # tf32=True,
+        tf32=True,
         bf16_full_eval=True,
         load_best_model_at_end=True,
         metric_for_best_model="loss",  # Change to accuracy or any other metric
@@ -320,7 +323,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-pc",
         "--permutation-count",
         type=int,
         default=5,
