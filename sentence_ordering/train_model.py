@@ -99,34 +99,36 @@ def generate_permuted_texts(
 def extract_texts(
     summaries: list[dict[str, Any]],
     include_summaries: bool,
+    only_summaries: bool,
     permutation_count: int,
     block_size: int,
 ) -> list[tuple[str, int]]:
     data: list[tuple[str, int]] = []
     for summary in summaries:
-        if "text_raw" in summary and summary["text_raw"] is not None:
-            data.append((summary["text_raw"], 1))  # Add the original with label=1
-            data.extend(
-                generate_permuted_texts(
-                    summary["text_raw"], permutation_count, block_size
-                )  # Add the all permutation with label=0
-            )
+        if not only_summaries:
+            if "text_raw" in summary and summary["text_raw"] is not None:
+                data.append((summary["text_raw"], 1))  # Add the original with label=1
+                data.extend(
+                    generate_permuted_texts(
+                        summary["text_raw"], permutation_count, block_size
+                    )  # Add the all permutation with label=0
+                )
+
+            if (
+                "ai_summary" in summary["metadata"]
+                and summary["metadata"]["ai_summary"] is not None
+            ):
+                data.append(
+                    (summary["metadata"]["ai_summary"], 1)
+                )  # Add the original with label=1
+                data.extend(
+                    generate_permuted_texts(
+                        summary["metadata"]["ai_summary"], permutation_count, block_size
+                    )  # Add the all permutation with label=0
+                )
 
         if (
-            "ai_summary" in summary["metadata"]
-            and summary["metadata"]["ai_summary"] is not None
-        ):
-            data.append(
-                (summary["metadata"]["ai_summary"], 1)
-            )  # Add the original with label=1
-            data.extend(
-                generate_permuted_texts(
-                    summary["metadata"]["ai_summary"], permutation_count, block_size
-                )  # Add the all permutation with label=0
-            )
-
-        if (
-            include_summaries
+            (include_summaries or only_summaries)
             and "summary" in summary
             and summary["summary"] is not None
         ):
@@ -142,11 +144,15 @@ def extract_texts(
 
 class SummaryDataset(Dataset):
     def __init__(
-        self, data: list[tuple[str, int]], tokenizer: PreTrainedTokenizer
+        self,
+        data: list[tuple[str, int]],
+        tokenizer: PreTrainedTokenizer,
+        max_length: int,
     ) -> None:
         self.texts = [d[0] for d in data]
         self.labels = [d[1] for d in data]
         self.tokenizer = tokenizer
+        self.max_length = max_length if max_length != -1 else 8192
 
     def __len__(
         self,
@@ -157,7 +163,9 @@ class SummaryDataset(Dataset):
         text = self.texts[idx]
         label = self.labels[idx]
 
-        encoding = self.tokenizer(text, padding=True, truncation=True, max_length=8192)
+        encoding = self.tokenizer(
+            text, padding=True, truncation=True, max_length=self.max_length
+        )
         encoding["label"] = label
 
         return encoding
@@ -203,17 +211,25 @@ def main(args: argparse.Namespace) -> None:
 
     print("Extracting texts")
     train_data = extract_texts(
-        train_summaries, args.include_summaries, args.permutation_count, args.block_size
+        train_summaries,
+        args.include_summaries,
+        args.only_summaries,
+        args.permutation_count,
+        args.block_size,
     )
     test_data = extract_texts(
-        test_summaries, args.include_summaries, args.permutation_count, args.block_size
+        test_summaries,
+        args.include_summaries,
+        args.only_summaries,
+        args.permutation_count,
+        args.block_size,
     )
 
     print("Loading Tokenizer")
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(args.model)
     print("Creating Datasets")
-    train_dataset = SummaryDataset(train_data, tokenizer)
-    test_dataset = SummaryDataset(test_data, tokenizer)
+    train_dataset = SummaryDataset(train_data, tokenizer, args.max_length)
+    test_dataset = SummaryDataset(test_data, tokenizer, args.max_length)
 
     print(f"Train Dataset size: {len(train_dataset)}")
     print(f"Test Dataset size: {len(test_dataset)}")
@@ -224,7 +240,7 @@ def main(args: argparse.Namespace) -> None:
         attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
         num_labels=2,
-        max_position_embeddings=8192,
+        max_position_embeddings=args.max_length,
         ignore_mismatched_sizes=True,
         problem_type="single_label_classification",
     )
@@ -322,7 +338,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--include-summaries",
         action="store_true",
-        help="Whether to use the summaties when training the model or not",
+        help="Whether to include the summaries when training the model",
+    )
+
+    parser.add_argument(
+        "--only-summaries",
+        action="store_true",
+        help="Whether to only use the summaries when training the model",
     )
 
     parser.add_argument(
@@ -330,6 +352,16 @@ if __name__ == "__main__":
         type=int,
         default=5,
         help="How many permutation to perform for each text instance",
+    )
+
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=-1,
+        help=(
+            "the maximum length of test to keep in the training data."
+            "This is different than the transformer context length since we avoid truncation"
+        ),
     )
 
     parser.add_argument(
@@ -355,6 +387,10 @@ if __name__ == "__main__":
     elif args.split_type == "random" and args.test_size is None:
         parser.error(
             "You must mention the size of the test set when using random split"
+        )
+    if args.include_summaries and args.only_summaries:
+        parser.error(
+            "Yoy must either set only-summaries or include-summaries and not both"
         )
 
     main(args)
