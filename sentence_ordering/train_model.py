@@ -90,7 +90,7 @@ def generate_permuted_texts(
     for _ in range(permutation_count):
         # Shuffle sentences and join them back into a single text
         random.shuffle(blocks)
-        permuted_text = ". ".join(sentences) + "."
+        permuted_text = ". ".join(blocks) + "."
         permutations.append((permuted_text, 0))
 
     return permutations
@@ -261,7 +261,7 @@ def main(args: argparse.Namespace) -> None:
         max_grad_norm=1.0,
         num_train_epochs=50,
         lr_scheduler_type="cosine",
-        # warmup_ratio=0.2,
+        warmup_ratio=0.2,
         eval_strategy="epoch",
         logging_strategy="epoch",
         save_strategy="epoch",
