@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import json
 import os
 import random
@@ -85,15 +86,20 @@ def generate_permuted_texts(
         for i in range(0, len(sentences), block_size)
     ]
 
-    # Generate K unique permutations
-    permutations: list[tuple[str, int]] = []
-    for _ in range(permutation_count):
-        # Shuffle sentences and join them back into a single text
-        random.shuffle(blocks)
-        permuted_text = ". ".join(blocks) + "."
-        permutations.append((permuted_text, 0))
+    # Generate all permutations of blocks
+    all_permutations = list(itertools.permutations(blocks))
 
-    return permutations
+    # Remove the original order
+    original = tuple(blocks)
+    all_permutations = [perm for perm in all_permutations if perm != original]
+
+    # If fewer permutations than k, return all permutations
+    if len(all_permutations) <= permutation_count:
+        return [(". ".join(perm) + ".", 0) for perm in all_permutations]
+
+    # Otherwise, randomly sample k permutations
+    sampled_permutations = random.sample(all_permutations, permutation_count)
+    return [(". ".join(perm)  + "." , 0) for perm in sampled_permutations]
 
 
 def extract_texts(
@@ -240,7 +246,7 @@ def main(args: argparse.Namespace) -> None:
         attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
         num_labels=2,
-        max_position_embeddings=args.max_length,
+        max_position_embeddings=args.max_length if args.max_length != -1 else 512,
         ignore_mismatched_sizes=True,
         problem_type="single_label_classification",
     )
@@ -250,13 +256,13 @@ def main(args: argparse.Namespace) -> None:
 
     name = (
         f"{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_"
-        f"{args.block_size}_include_summaries_{args.include_summaries}"
+        f"{args.block_size}_max_length_{args.max_length}"
     ).replace("/", "_")
 
     train_args = TrainingArguments(
         output_dir=f"{args.save_path}/{name}",
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
         weight_decay=0.1,
         max_grad_norm=1.0,
         num_train_epochs=3,
@@ -279,6 +285,7 @@ def main(args: argparse.Namespace) -> None:
         dataloader_pin_memory=True,
         torch_compile=True,
         report_to="wandb",
+        group_by_length=True,
         run_name=name,
     )
 
@@ -378,6 +385,13 @@ if __name__ == "__main__":
         type=str,
         default="onlplab/alephbert-base",
         help="Path to save the trained model",
+    )
+
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help="What batch size to use when training the model",
     )
 
     args = parser.parse_args()
