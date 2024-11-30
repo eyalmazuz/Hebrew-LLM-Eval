@@ -1,6 +1,6 @@
 import argparse
-import itertools
 import json
+import math
 import os
 import random
 from typing import Any
@@ -76,30 +76,35 @@ def generate_permuted_texts(
 ) -> list[tuple[str, int]]:
     # Split the text into sentences based on periods
     sentences = text.strip().split(".")
-
-    # Remove any empty sentences (due to trailing periods)
     sentences = [s.strip() for s in sentences if s.strip()]
 
-    # Group sentences into blocks of size c
+    # Group sentences into blocks of size block_size
     blocks = [
         ". ".join(sentences[i : i + block_size])
         for i in range(0, len(sentences), block_size)
     ]
 
-    # Generate all permutations of blocks
-    all_permutations = list(itertools.permutations(blocks))
+    original_order = tuple(blocks)
+    num_blocks = len(blocks)
 
-    # Remove the original order
-    original = tuple(blocks)
-    all_permutations = [perm for perm in all_permutations if perm != original]
+    # Compute total number of possible permutations
+    total_permutations = math.factorial(num_blocks)
+    max_unique_permutations = total_permutations - 1  # Exclude the original order
 
-    # If fewer permutations than k, return all permutations
-    if len(all_permutations) <= permutation_count:
-        return [(". ".join(perm) + ".", 0) for perm in all_permutations]
+    # Adjust permutation_count if necessary
+    permutation_count = min(permutation_count, max_unique_permutations)
 
-    # Otherwise, randomly sample k permutations
-    sampled_permutations = random.sample(all_permutations, permutation_count)
-    return [(". ".join(perm)  + "." , 0) for perm in sampled_permutations]
+    # Generate random permutations
+    permutations_set: set[tuple[str, ...]] = set()
+    while len(permutations_set) < permutation_count:
+        perm = blocks[:]
+        random.shuffle(perm)
+        perm_tuple = tuple(perm)
+        if perm_tuple != original_order:
+            permutations_set.add(perm_tuple)
+
+    return [(". ".join(perm) + ".", 0) for perm in permutations_set]
+
 
 
 def extract_texts(
