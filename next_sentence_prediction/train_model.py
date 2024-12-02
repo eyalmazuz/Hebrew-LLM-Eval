@@ -80,7 +80,7 @@ def generate_texts_pairs(
     # Group sentences into pairs
     pairs = [
         (sentences[i], sentences[i+1])
-        for i in range(0, len(sentences), 2)
+        for i in range(0, len(sentences)-1, 2)
     ]
 
     return pairs
