@@ -247,8 +247,8 @@ def main(args: argparse.Namespace) -> None:
     data_collator = DataCollatorWithPadding(tokenizer)
 
     name = (
-        f"NSP_{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_"
-        f"{args.block_size}_max_length_{args.max_length}"
+        f"NSP_{args.model}_{args.split_type}_{source_type}_{args.negative_count}_"
+        f"max_length_{args.max_length}"
     ).replace("/", "_")
 
     train_args = TrainingArguments(
