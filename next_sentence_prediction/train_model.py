@@ -111,29 +111,29 @@ def extract_texts(
     for summary in summaries:
         if not only_summaries and "text_raw" in summary and summary["text_raw"] is not None:
             positive_pairs = generate_texts_pairs(summary["text_raw"])
-            data.extend([(pair, 1) for pair in positive_pairs])
+            data.extend([(pair, 0) for pair in positive_pairs])
             negative_pairs = generate_negative_pairs(positive_pairs, summary["text_raw"], negative_count)
-            data.extend([(pair, 0) for pair in negative_pairs])
+            data.extend([(pair, 1) for pair in negative_pairs])
 
         if (
             "ai_summary" in summary["metadata"]
             and summary["metadata"]["ai_summary"] is not None
         ):
             positive_pairs = generate_texts_pairs(summary["metadata"]["ai_summary"])
-            data.extend([(pair, 1) for pair in positive_pairs])
+            data.extend([(pair, 0) for pair in positive_pairs])
 
             negative_pairs = generate_negative_pairs(positive_pairs, summary["metadata"]["ai_summary"], negative_count)
-            data.extend([(pair, 0) for pair in negative_pairs])
+            data.extend([(pair, 1) for pair in negative_pairs])
 
         if (
             "summary" in summary
             and summary["summary"] is not None
         ):
             positive_pairs = generate_texts_pairs(summary["summary"])
-            data.extend([(pair, 1) for pair in positive_pairs])
+            data.extend([(pair, 0) for pair in positive_pairs])
 
             negative_pairs = generate_negative_pairs(positive_pairs, summary["summary"], negative_count)
-            data.extend([(pair, 0) for pair in negative_pairs])
+            data.extend([(pair, 1) for pair in negative_pairs])
 
     return data
 
@@ -255,9 +255,9 @@ def main(args: argparse.Namespace) -> None:
         output_dir=f"{args.save_path}/{name}",
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
-        weight_decay=0.1,
+        # weight_decay=0.1,
         max_grad_norm=1.0,
-        num_train_epochs=3,
+        num_train_epochs=15,
         learning_rate=5e-5,
         lr_scheduler_type="cosine",
         # warmup_ratio=0.2,
