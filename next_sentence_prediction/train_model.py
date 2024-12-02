@@ -382,9 +382,4 @@ if __name__ == "__main__":
         parser.error(
             "You must mention the size of the test set when using random split"
         )
-    if args.include_summaries and args.only_summaries:
-        parser.error(
-            "Yoy must either set only-summaries or include-summaries and not both"
-        )
-
     main(args)
