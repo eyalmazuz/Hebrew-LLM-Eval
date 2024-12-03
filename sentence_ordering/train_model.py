@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import wandb
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch.utils.data import Dataset
 from transformers import (
@@ -263,6 +264,21 @@ def main(args: argparse.Namespace) -> None:
         f"{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_"
         f"{args.block_size}_max_length_{args.max_length}"
     ).replace("/", "_")
+
+    wandb.init(
+        name=name,
+        project=os.environ.get("WANDB_PROJECT", None),
+        entity=os.environ.get("WANDB_ENTITY", None),
+        group="NSP",
+        config={
+            "source_type": args.source_type,
+            "split_type": args.split_type,
+            "only_summaries": args.only_summaries,
+            "include_summaries": args.include_summaries,
+            "permutation_count": args.permutation_count,
+            "block_size": args.block_size,
+        }
+    )
 
     train_args = TrainingArguments(
         output_dir=f"{args.save_path}/{name}",
