@@ -156,23 +156,17 @@ class PairDataset(Dataset):
         return len(self.texts)
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
-        text: tuple[str, str] = self.texts[idx]
-        label: int = self.labels[idx]
+        sent_a, sent_b = self.texts[idx]
+        label = self.labels[idx]
 
         encoding = self.tokenizer(
-            text, # We warp into list to create [[Sentence A, Sentence B]]
-            # so the tokenizer will know it's a pair and not two separate sentences
+            sent_a, sent_b,
             padding=True, truncation=True, max_length=self.max_length
         )
         encoding["label"] = label
         # encoding["input_ids"] = encoding["input_ids"][0]
 
-        return {
-            'input_ids': encoding['input_ids'][0],
-            'attention_mask': encoding['attention_mask'][0],
-            'token_type_ids': encoding.get('token_type_ids', torch.tensor([]))[0],
-            'label': label
-        }
+        return encoding
 
 
 def compute_metrics(eval_pred: EvalPrediction):
@@ -362,7 +356,7 @@ if __name__ == "__main__":
         "-m",
         "--model",
         type=str,
-        default="onlplab/alephbert-base",
+        default="dicta-il/alephbertgimmel-base",
         help="Path to save the trained model",
     )
 
