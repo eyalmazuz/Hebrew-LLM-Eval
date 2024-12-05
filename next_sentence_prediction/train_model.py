@@ -6,7 +6,6 @@ from typing import Any
 
 import numpy as np
 import torch
-import wandb
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch.utils.data import Dataset
 from transformers import (
@@ -18,6 +17,8 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+
+import wandb
 
 idx2source = {
     0: "Weizmann",
@@ -242,8 +243,7 @@ def main(args: argparse.Namespace) -> None:
     data_collator = DataCollatorWithPadding(tokenizer)
 
     name = (
-        f"NSP_{args.model}_{args.split_type}_{source_type}_{args.negative_count}_"
-        f"max_length_{args.max_length}"
+        f"NSP_{args.model}_{args.split_type}_{source_type}_{args.negative_count}"
     ).replace("/", "_")
 
     wandb.init(
@@ -265,8 +265,8 @@ def main(args: argparse.Namespace) -> None:
         per_device_eval_batch_size=args.batch_size,
         # weight_decay=0.1,
         max_grad_norm=1.0,
-        num_train_epochs=15,
-        learning_rate=5e-5,
+        num_train_epochs=10,
+        learning_rate=6e-4,
         lr_scheduler_type="cosine",
         # warmup_ratio=0.2,
         eval_strategy="epoch",
