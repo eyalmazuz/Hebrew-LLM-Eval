@@ -7,7 +7,6 @@ from typing import Any
 
 import numpy as np
 import torch
-import wandb
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch.utils.data import Dataset
 from transformers import (
@@ -19,6 +18,8 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+
+import wandb
 
 idx2source = {
     0: "Weizmann",
@@ -265,11 +266,11 @@ def main(args: argparse.Namespace) -> None:
         f"{args.block_size}_max_length_{args.max_length}"
     ).replace("/", "_")
 
-    wandb.init(
+    wandb.init( # type: ignore
         name=name,
         project=os.environ.get("WANDB_PROJECT", None),
         entity=os.environ.get("WANDB_ENTITY", None),
-        group="NSP",
+        group="Sentence_Ordering",
         config={
             "source_type": args.source_type,
             "split_type": args.split_type,
@@ -404,7 +405,7 @@ if __name__ == "__main__":
         "-m",
         "--model",
         type=str,
-        default="onlplab/alephbert-base",
+        default="dicta-il/alephbertgimmel-base",
         help="Path to save the trained model",
     )
 
