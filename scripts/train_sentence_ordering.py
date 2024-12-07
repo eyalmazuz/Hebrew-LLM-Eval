@@ -101,7 +101,6 @@ def main(args: argparse.Namespace) -> None:
             "source_type": args.source_type,
             "split_type": args.split_type,
             "only_summaries": args.only_summaries,
-            "include_summaries": args.include_summaries,
             "permutation_count": args.permutation_count,
             "block_size": args.block_size,
         },
