@@ -8,7 +8,7 @@ from transformers import (
 
 def compute_metrics(eval_pred: EvalPrediction):
     preds = eval_pred.predictions[0] if isinstance(eval_pred.predictions, tuple) else eval_pred.predictions
-    probs = torch.nn.functional.log_softmax(torch.from_numpy(preds), dim=1)
+    probs = torch.nn.functional.softmax(torch.from_numpy(preds), dim=1)
     y_pred = np.argmax(probs, axis=1)
     y_true = eval_pred.label_ids
 
