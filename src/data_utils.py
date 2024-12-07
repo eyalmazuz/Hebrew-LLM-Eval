@@ -20,11 +20,11 @@ def k_block_shuffling(texts: list[str], permutation_count: int, block_size: int)
         max_unique_permutations = total_permutations - 1  # Exclude the original order
 
         # Adjust permutation_count if necessary
-        permutation_count = min(permutation_count, max_unique_permutations)
+        negative_count = min(permutation_count, max_unique_permutations)
 
         # Generate random permutations
         permutations_set: set[tuple[str, ...]] = set()
-        while len(permutations_set) < permutation_count:
+        while len(permutations_set) < negative_count:
             perm = blocks[:]
             random.shuffle(perm)
             perm_tuple = tuple(perm)
@@ -32,7 +32,6 @@ def k_block_shuffling(texts: list[str], permutation_count: int, block_size: int)
                 permutations_set.add(perm_tuple)
 
         negatives.extend([(". ".join(perm) + ".", 0) for perm in permutations_set])
-
     return negatives
 
 
