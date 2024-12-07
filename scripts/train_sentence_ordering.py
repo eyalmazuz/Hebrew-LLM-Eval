@@ -24,10 +24,11 @@ def main(args: argparse.Namespace) -> None:
     print(f"Loading data from {args.input_path}")
     summaries = load_data(args.input_path)
 
-    if "SLURM_ARRAY_TASK_ID" in os.environ:
-        source_type = IDX2SOURCE[int(os.environ["SLURM_ARRAY_TASK_ID"])]
-    else:
-        source_type = args.source_type
+    if args.split_type.lower() == "source":
+        if "SLURM_ARRAY_TASK_ID" in os.environ:
+            source_type = IDX2SOURCE[int(os.environ["SLURM_ARRAY_TASK_ID"])]
+        else:
+            source_type = args.source_type
 
     if source_type is None and args.split_type.lower() == "source":
         raise ValueError(f"Split type {args.split_type} was chosen but no source was selected")
