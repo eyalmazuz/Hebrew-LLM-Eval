@@ -37,7 +37,7 @@ def main(args: argparse.Namespace) -> None:
 
     print(
         f"Generating Training data with only summaries = {args.only_summaries}, "
-        f"negaitve_count count={args.negaitve_count}, negative type={args.negative_type}"
+        f"negative_count count={args.negative_count}, negative type={args.negative_type}"
     )
     train_texts = extract_texts(
         train_summaries,
@@ -51,7 +51,7 @@ def main(args: argparse.Namespace) -> None:
 
     print(
         f"Generating Test data with only summaries = {args.only_summaries}, "
-        f"negaitve_count count={args.negaitve_count}, negative type={args.negative_type}"
+        f"negative_count count={args.negative_count}, negative type={args.negative_type}"
     )
     test_texts = extract_texts(
         test_summaries,
@@ -93,6 +93,7 @@ def main(args: argparse.Namespace) -> None:
             "source_type": args.source_type,
             "split_type": args.split_type,
             "negative_count": args.negative_count,
+            "negative_type": args.negative_type,
             "only_summaries": args.only_summaries,
         },
     )
