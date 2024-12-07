@@ -41,11 +41,11 @@ def generate_nsp_pairs(
     pairs: list[tuple[tuple[str, str], int]] = []
     for text in texts:
         # Split the text into sentences based on periods
-        sentences = text.strip().split(". ")
+        sentences = text.strip().split(".")
         sentences = [s.strip() for s in sentences if s.strip()]
 
         # Group sentences into pairs
-        pairs += [((sentences[i], sentences[i + 1]), 1) for i in range(0, len(sentences) - 1, 2)]
+        pairs += [((sentences[i], sentences[i + 1]), 0) for i in range(0, len(sentences) - 1)]
 
     return pairs
 
@@ -58,16 +58,36 @@ def generate_negative_pairs(
     negatives: list[tuple[tuple[str, str], int]] = []
 
     for i, text in enumerate(positive_texts):
-        sentences = text.split(". ")
-        for j, sentence in enumerate(sentences):
+        # Split into sentences and remove empty entries
+        sentences = [line.strip() for line in text.split(".") if line.strip()]
+
+        # If not enough sentences to form a positive pair, skip
+        if len(sentences) < 2:
+            continue
+
+        for j, sentence in enumerate(sentences[:-1]):
             match negative_type.lower():
                 case "in-pair":
-                    potential_negatives = [sent for sent in sentence if sent != sentence]
+                    # For in-pair negatives, select from the same text excluding current and next sentence
+                    potential_negatives = [sent for k, sent in enumerate(sentences) if k != j and k != j + 1]
                 case "any":
-                    numbers = [k for k in range(1, len(positive_texts) + 1) if k != i]
-                    negative_texts = [positive_texts[k].split(". ") for k in random.sample(numbers, negative_count)]
-                    potential_negatives = [item for sublist in negative_texts for item in sublist]
-            k_negs = random.sample(potential_negatives, k=min(negative_count, len(potential_negatives)))
-            negatives.extend([((sentence, negative), 0) for negative in k_negs])
+                    # For "any" negatives, pick sentences from other texts
+                    candidates = [k for k in range(len(positive_texts)) if k != i]
+                    # Ensure we don't sample more texts than we have
+                    sample_count = min(len(candidates), negative_count)
+                    chosen_indices = random.sample(candidates, k=sample_count)
+                    # Collect sentences from chosen texts
+                    potential_negatives = []
+                    for idx in chosen_indices:
+                        other_sentences = [s.strip() for s in positive_texts[idx].split(".") if s.strip()]
+                        potential_negatives.extend(other_sentences)
+                case _:
+                    # If negative_type is unrecognized, produce no negatives
+                    potential_negatives = []
+
+            # Sample negatives if available
+            if potential_negatives:
+                k_negs = random.sample(potential_negatives, k=min(negative_count, len(potential_negatives)))
+                negatives.extend([((sentence, neg), 1) for neg in k_negs])
 
     return negatives

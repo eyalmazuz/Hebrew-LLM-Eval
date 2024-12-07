@@ -1,7 +1,6 @@
 import argparse
 import os
 
-import wandb
 from transformers import (
     AutoModelForNextSentencePrediction,
     AutoTokenizer,
@@ -11,6 +10,7 @@ from transformers import (
     TrainingArguments,
 )
 
+import wandb
 from src.data_utils import generate_negative_pairs, generate_nsp_pairs
 from src.datasets import PairDataset
 from src.train_utils import compute_metrics
@@ -84,7 +84,7 @@ def main(args: argparse.Namespace) -> None:
 
     name = (f"NSP_{args.model}_{args.split_type}_{source_type}_{args.negative_count}").replace("/", "_")
 
-    wandb.init(
+    wandb.init(  # type: ignore
         name=name,
         project=os.environ.get("WANDB_PROJECT", None),
         entity=os.environ.get("WANDB_ENTITY", None),
@@ -101,12 +101,10 @@ def main(args: argparse.Namespace) -> None:
         output_dir=f"{args.save_path}/{name}",
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
-        # weight_decay=0.1,
+        weight_decay=0.1,
         max_grad_norm=1.0,
         num_train_epochs=10,
-        learning_rate=6e-4,
-        # lr_scheduler_type="cosine",
-        # warmup_ratio=0.2,
+        learning_rate=5e-5,
         eval_strategy="epoch",
         logging_strategy="epoch",
         save_strategy="epoch",
