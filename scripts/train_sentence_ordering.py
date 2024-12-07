@@ -1,7 +1,6 @@
 import argparse
 import os
 
-import wandb
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -11,6 +10,7 @@ from transformers import (
     TrainingArguments,
 )
 
+import wandb
 from src.data_utils import k_block_shuffling
 from src.datasets import SentenceOrderingDataset
 from src.train_utils import compute_metrics
@@ -33,7 +33,7 @@ def main(args: argparse.Namespace) -> None:
     if source_type is None and args.split_type.lower() == "source":
         raise ValueError(f"Split type {args.split_type} was chosen but no source was selected")
 
-    print(f"Splitting to train test using {args.split_type}")
+    print(f"Splitting to train test using {args.split_type} {args.source_type} {args.test_size}")
     train_summaries, test_summaries = get_train_test_split(summaries, args.split_type, source_type, args.test_size)
 
     print(
@@ -48,6 +48,9 @@ def main(args: argparse.Namespace) -> None:
     train_negatives = k_block_shuffling(
         train_texts, permutation_count=args.permutation_count, block_size=args.block_size
     )
+    assert (
+        len(set(train_negatives) & set(train_positives)) == 0
+    ), "Error, train negatives and train positives have matching data points"
     train_data = train_positives + train_negatives
 
     print(
@@ -62,9 +65,8 @@ def main(args: argparse.Namespace) -> None:
     test_negatives = k_block_shuffling(test_texts, permutation_count=args.permutation_count, block_size=args.block_size)
 
     assert (
-        len(set(train_negatives) & set(train_positives)) == 0
-    ), "Error, negatives and positive have matching data points"
-
+        len(set(test_negatives) & set(test_positives)) == 0
+    ), "Error, test negatives and test positives have matching data points"
     test_data = test_positives + test_negatives
 
     print("Loading Tokenizer")
