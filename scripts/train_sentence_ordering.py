@@ -243,7 +243,5 @@ if __name__ == "__main__":
         parser.error("Can't set test size when using Source-based split")
     elif args.split_type == "random" and args.test_size is None:
         parser.error("You must mention the size of the test set when using random split")
-    if args.include_summaries and args.only_summaries:
-        parser.error("Yoy must either set only-summaries or include-summaries and not both")
 
     main(args)
