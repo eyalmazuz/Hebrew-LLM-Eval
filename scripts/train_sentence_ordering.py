@@ -82,13 +82,13 @@ def main(args: argparse.Namespace) -> None:
     model = AutoModelForSequenceClassification.from_pretrained(
         args.model,
         num_labels=2,
-        max_position_embeddings=args.max_length if args.max_length != -1 else 512,
+        # max_position_embeddings=args.max_length if args.max_length != -1 else 512,
         ignore_mismatched_sizes=True,
         problem_type="single_label_classification",
     )
 
     print("Creating training args")
-    data_collator = DataCollatorWithPadding(tokenizer)
+    data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
 
     name = (
         f"Ordering_{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_" f"{args.block_size}"

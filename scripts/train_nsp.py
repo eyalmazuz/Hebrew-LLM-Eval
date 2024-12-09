@@ -75,12 +75,12 @@ def main(args: argparse.Namespace) -> None:
     print(f"Loading model {args.model}")
     model = AutoModelForNextSentencePrediction.from_pretrained(
         args.model,
-        max_position_embeddings=args.max_length if args.max_length != -1 else 512,
+        # max_position_embeddings=args.max_length if args.max_length != -1 else 512,
         ignore_mismatched_sizes=True,
     )
 
     print("Creating training args")
-    data_collator = DataCollatorWithPadding(tokenizer)
+    data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
 
     name = (f"NSP_{args.model}_{args.split_type}_{source_type}_{args.negative_count}").replace("/", "_")
 

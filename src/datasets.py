@@ -14,7 +14,7 @@ class PairDataset(Dataset):
         self.texts = [d[0] for d in data]  # List of pairs (sentence A, sentence B)
         self.labels = [d[1] for d in data]
         self.tokenizer = tokenizer
-        self.max_length = max_length if max_length != -1 else 8192
+        self.max_length = max_length if max_length != -1 else tokenizer.model_max_length
 
     def __len__(
         self,
@@ -41,7 +41,7 @@ class SentenceOrderingDataset(Dataset):
         self.texts = [d[0] for d in data]
         self.labels = [d[1] for d in data]
         self.tokenizer = tokenizer
-        self.max_length = max_length if max_length != -1 else 8192
+        self.max_length = max_length if max_length != -1 else tokenizer.model_max_length
 
     def __len__(
         self,
