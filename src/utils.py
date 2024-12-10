@@ -12,8 +12,14 @@ IDX2SOURCE = {
 
 
 def load_data(path: str) -> list[dict[str, Any]]:
-    with open(path) as fd:
-        summaries = [json.loads(line) for line in fd.readlines()]
+    try:
+        with open(path) as fd:
+            summaries = [json.loads(line) for line in fd]
+    except FileNotFoundError:
+        raise FileNotFoundError(f"No file was found at {path}")
+    except json.JSONDecodeError as e:
+        # Re-raise the JSONDecodeError with the same or modified details
+        raise json.JSONDecodeError(f"Error decoding JSON in file {path}: {e.msg}", e.doc, e.pos)
 
     return summaries
 
@@ -45,7 +51,8 @@ def get_train_test_split(
 
 def extract_texts(
     summaries: list[dict[str, Any]],
-    only_summaries: bool,
+    only_summaries: bool = True,
+    use_ai_summaries: bool = True,
 ) -> list[str]:
     positives: list[str] = []
     for summary in summaries:
@@ -58,7 +65,8 @@ def extract_texts(
             positives.append(summary["text_raw"])
 
         if (
-            "ai_summary" in summary["metadata"]
+            use_ai_summaries
+            and "ai_summary" in summary["metadata"]
             and summary["metadata"]["ai_summary"] is not None
             and summary["metadata"]["ai_summary"] != ""
         ):
@@ -67,4 +75,4 @@ def extract_texts(
         if "summary" in summary and summary["summary"] is not None and summary["summary"] != "":
             positives.append(summary["summary"])
 
-    return list(set(positives))
+    return positives
