@@ -16,9 +16,6 @@ from src.datasets import PairDataset
 from src.train_utils import compute_metrics
 from src.utils import IDX2SOURCE, extract_texts, get_train_test_split, load_data
 
-os.environ["WANDB_PROJECT"] = "Mafat-Coherence"
-os.environ["WANDB_LOG_MODEL"] = "end"
-
 
 def main(args: argparse.Namespace) -> None:
     print(f"Loading data from {args.input_path}")
