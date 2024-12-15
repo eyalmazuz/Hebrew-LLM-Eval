@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 permissions:
-  contents: read  # Now only read permissions
+  contents: write  # Required if you want to allow auto-fixing and pushing changes
 
 jobs:
   build:
@@ -27,8 +27,11 @@ jobs:
           pip install pytest ruff mypy
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Lint with Ruff
-        run: ruff check --config .ruff.toml .
+      - name: Lint and fix with Ruff
+        run: ruff check --fix .
+
+      - name: Format with Ruff
+        run: ruff format .
 
       - name: Type-check with mypy
         run: mypy . --pretty --extra-checks --ignore-missing-imports
