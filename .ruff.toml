@@ -32,13 +32,13 @@ exclude = [
 line-length = 120
 indent-width = 4
 
-# Assume Python 3.11
-target-version = "py311"
+# Assume Python 3.10
+target-version = "py310"
 
 [lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
 select = ["W", "F", "UP", "SIM", "I", "N", "E"]
-ignore = []
+ignore = ["UP015", "N806", "N812"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

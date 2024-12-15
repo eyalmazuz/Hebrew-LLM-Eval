@@ -5,5 +5,6 @@ openai
 pandas
 pandas-stubs
 pre-commit
+pytest
 ruff
 tqdm
