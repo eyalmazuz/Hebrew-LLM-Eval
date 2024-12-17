@@ -7,7 +7,7 @@ from typing import Any
 class Augmentation(ABC):
     @abstractmethod
     def __call__(self, text: str) -> str | None:
-        pass
+        raise NotImplementedError
 
 
 class SentenceRemoval(Augmentation):
@@ -72,14 +72,16 @@ class KeyboardSwap(Augmentation):
         graph_path: str = "./data/augmentation_models/hebrew_keyboard.gpickle",
         word_p: float = 0.5,
         char_p: float = 0.1,
+        insert_double: bool = True,
     ) -> None:
-        assert 0.0 < word_p < 1.0, "the word replacement probability can only be between 0 and 1"
-        assert 0.0 < char_p < 1.0, "the character replacement probability can only be between 0 and 1"
+        assert 0.0 <= word_p <= 1.0, "the word replacement probability can only be between 0 and 1"
+        assert 0.0 <= char_p <= 1.0, "the character replacement probability can only be between 0 and 1"
 
         with open(graph_path, "rb") as fd:
             self.graph = pickle.load(fd)
         self.word_p = word_p
         self.char_p = char_p
+        self.insert_double = insert_double
 
     def __call__(self, text: str) -> str | None:
         words: list[str] = text.split()
@@ -89,7 +91,7 @@ class KeyboardSwap(Augmentation):
                 for char_idx, char in enumerate(chars):
                     if random.random() < self.char_p and char in self.graph:
                         random_char = random.sample(list(self.graph.neighbors(char)), k=1)[0]
-                        chars[char_idx] = random_char + char * random.randint(0, 1)
+                        chars[char_idx] = random_char + char * random.randint(0, 1) * self.insert_double
                 words[word_idx] = "".join(chars)
 
         return " ".join(words)

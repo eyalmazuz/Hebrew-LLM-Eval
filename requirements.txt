@@ -1,10 +1,13 @@
 anthropic
+coverage
 google-generativeai
 mypy
+networkx
 openai
 pandas
 pandas-stubs
 pre-commit
 pytest
 ruff
+transformers
 tqdm
