@@ -1,3 +1,4 @@
+import pickle
 import random
 from abc import ABC, abstractmethod
 from typing import Any
@@ -65,6 +66,38 @@ class SetenceShuffle(Augmentation):
         return "sentence-shuffle"
 
 
+class KeyboardSwap(Augmentation):
+    def __init__(
+        self,
+        graph_path: str = "./data/augmentation_models/hebrew_keyboard.gpickle",
+        word_p: float = 0.5,
+        char_p: float = 0.1,
+    ) -> None:
+        assert 0.0 < word_p < 1.0, "the word replacement probability can only be between 0 and 1"
+        assert 0.0 < char_p < 1.0, "the character replacement probability can only be between 0 and 1"
+
+        with open(graph_path, "rb") as fd:
+            self.graph = pickle.load(fd)
+        self.word_p = word_p
+        self.char_p = char_p
+
+    def __call__(self, text: str) -> str | None:
+        words: list[str] = text.split()
+        for word_idx, word in enumerate(words):
+            if random.random() < self.word_p:
+                chars: list[str] = list(word)
+                for char_idx, char in enumerate(chars):
+                    if random.random() < self.char_p and char in self.graph:
+                        random_char = random.sample(list(self.graph.neighbors(char)), k=1)[0]
+                        chars[char_idx] = random_char + char * random.randint(0, 1)
+                words[word_idx] = "".join(chars)
+
+        return " ".join(words)
+
+    def __str__(self) -> str:
+        return "keyboard-swapping"
+
+
 def get_augmentations(augs_type: list[str], augmentations_config: dict[str, Any] | None) -> list[Augmentation]:
     augmentations: list[Augmentation] = []
     for type_ in augs_type:
@@ -75,6 +108,8 @@ def get_augmentations(augs_type: list[str], augmentations_config: dict[str, Any]
                 augmentation = SentenceRemoval(**config)
             case "sentence-shuffle":
                 augmentation = SetenceShuffle(**config)
+            case "keyboard-swapping":
+                augmentation = KeyboardSwap(**config)
             case _:
                 raise ValueError(f"{type_} is not a valid augmentation")
         augmentations.append(augmentation)
