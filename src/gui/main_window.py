@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QPlainTextEdit,
     QPushButton,
+    QSpinBox,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -55,6 +56,13 @@ class MainWindow(QMainWindow):
         self.filter_combo.setMinimumContentsLength(15)
         toolbar.addWidget(self.filter_combo)
 
+        font_size_spinbox = QSpinBox()
+        font_size_spinbox.setRange(6, 72)  # Set a sensible range of font sizes
+        font_size_spinbox.setValue(14)  # Default font size
+        font_size_spinbox.setToolTip("Change Font Size")
+        font_size_spinbox.valueChanged.connect(self.change_font_size)
+        toolbar.addWidget(font_size_spinbox)
+
         # Central layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -75,6 +83,10 @@ class MainWindow(QMainWindow):
         self.original_text_edit.setReadOnly(True)
         self.original_text_edit.setLayoutDirection(Qt.RightToLeft)
 
+        font = self.original_text_edit.font()
+        font.setPointSize(14)  # Choose your desired size
+        self.original_text_edit.setFont(font)
+
         original_layout.addWidget(original_title)
         original_layout.addWidget(self.original_text_edit)
 
@@ -85,6 +97,10 @@ class MainWindow(QMainWindow):
         self.augmented_text_edit = QPlainTextEdit()
         self.augmented_text_edit.setLayoutDirection(Qt.RightToLeft)
         self.augmented_text_edit.textChanged.connect(self.on_augmented_text_changed)
+
+        font = self.augmented_text_edit.font()
+        font.setPointSize(14)
+        self.augmented_text_edit.setFont(font)
 
         augmented_layout.addWidget(augmented_title)
         augmented_layout.addWidget(self.augmented_text_edit)
@@ -113,6 +129,16 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.apply_button)
 
         main_layout.addLayout(button_layout)
+
+    def change_font_size(self, size):
+        # Change the font size for both original_text_edit and augmented_text_edit
+        original_font = self.original_text_edit.font()
+        original_font.setPointSize(size)
+        self.original_text_edit.setFont(original_font)
+
+        augmented_font = self.augmented_text_edit.font()
+        augmented_font.setPointSize(size)
+        self.augmented_text_edit.setFont(augmented_font)
 
     def load_csv(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open CSV File", "", "CSV Files (*.csv)")
