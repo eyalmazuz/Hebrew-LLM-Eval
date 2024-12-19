@@ -41,7 +41,9 @@ def main(args: argparse.Namespace) -> None:
         train_summaries,
         args.only_summaries,
     )
-    train_positives = [(t, 1) for t in train_texts]
+    train_positives = [
+        (". ".join([s.strip() for s in text.strip().split(".") if s.strip()]) + ".", 1) for text in train_texts
+    ]
     train_negatives = k_block_shuffling(
         train_texts, permutation_count=args.permutation_count, block_size=args.block_size
     )
@@ -58,8 +60,12 @@ def main(args: argparse.Namespace) -> None:
         test_summaries,
         args.only_summaries,
     )
-    test_positives = [(t, 1) for t in test_texts]
-    test_negatives = k_block_shuffling(test_texts, permutation_count=args.permutation_count, block_size=args.block_size)
+    test_positives = [
+        (". ".join([s.strip() for s in text.strip().split(".") if s.strip()]) + ".", 1) for text in test_texts
+    ]
+    test_negatives = k_block_shuffling(
+        test_texts, permutation_count=args.permutation_count, block_size=args.block_size, is_dynamic=args.dynamic_block
+    )
 
     assert (
         len(set(test_negatives) & set(test_positives)) == 0
@@ -215,6 +221,12 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="What blocksize to use when training the model",
+    )
+
+    parser.add_argument(
+        "--dynamic_block",
+        action="store_true",
+        help="What blocksize is dynamic in range or not",
     )
 
     parser.add_argument(

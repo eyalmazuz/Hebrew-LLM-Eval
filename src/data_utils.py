@@ -2,7 +2,9 @@ import math
 import random
 
 
-def k_block_shuffling(texts: list[str], permutation_count: int, block_size: int) -> list[tuple[str, int]]:
+def k_block_shuffling(
+    texts: list[str], permutation_count: int, block_size: int, is_dynamic: bool = False
+) -> list[tuple[str, int]]:
     negatives: list[tuple[str, int]] = []
     for text in texts:
         # Split the text into sentences based on periods
@@ -10,7 +12,20 @@ def k_block_shuffling(texts: list[str], permutation_count: int, block_size: int)
         sentences = [s.strip() for s in sentences if s.strip()]
 
         # Group sentences into blocks of size block_size
-        blocks = [". ".join(sentences[i : i + block_size]) for i in range(0, len(sentences), block_size)]
+        if not is_dynamic:
+            # Group sentences into fixed-size blocks
+            blocks = [". ".join(sentences[i : i + block_size]) for i in range(0, len(sentences), block_size)]
+        else:
+            # Dynamic block creation
+            blocks = []
+            idx = 0
+            while idx < len(sentences):
+                # Sample a block size in [1, block_size]
+                s = random.randint(1, block_size)
+                # Take s sentences for the current block
+                block_sentences = sentences[idx : idx + s]
+                blocks.append(". ".join(block_sentences))
+                idx += s
 
         original_order = tuple(blocks)
         num_blocks = len(blocks)
