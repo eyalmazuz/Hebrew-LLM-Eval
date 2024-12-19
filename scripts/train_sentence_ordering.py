@@ -94,7 +94,7 @@ def main(args: argparse.Namespace) -> None:
     data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
 
     name = (
-        f"Ordering_{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_" f"{args.block_size}"
+        f"Ordering_{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_{args.block_size}_{args.dynamic_block}"
     ).replace("/", "_")
 
     wandb.init(  # type: ignore
@@ -108,6 +108,7 @@ def main(args: argparse.Namespace) -> None:
             "only_summaries": args.only_summaries,
             "permutation_count": args.permutation_count,
             "block_size": args.block_size,
+            "dynamic_block": args.dynamic_block,
         },
     )
 
