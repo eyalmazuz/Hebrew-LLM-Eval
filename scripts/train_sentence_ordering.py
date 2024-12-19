@@ -45,7 +45,7 @@ def main(args: argparse.Namespace) -> None:
         (". ".join([s.strip() for s in text.strip().split(".") if s.strip()]) + ".", 1) for text in train_texts
     ]
     train_negatives = k_block_shuffling(
-        train_texts, permutation_count=args.permutation_count, block_size=args.block_size
+        train_texts, permutation_count=args.permutation_count, block_size=args.block_size, is_dynamic=args.dynamic_block
     )
     assert (
         len(set(train_negatives) & set(train_positives)) == 0
