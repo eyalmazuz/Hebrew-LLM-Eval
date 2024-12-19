@@ -225,7 +225,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--dynamic_block",
+        "--dynamic-block",
         action="store_true",
         help="What blocksize is dynamic in range or not",
     )
