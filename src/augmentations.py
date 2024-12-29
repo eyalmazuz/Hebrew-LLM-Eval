@@ -10,31 +10,74 @@ class Augmentation(ABC):
         raise NotImplementedError
 
 
-class SentenceRemoval(Augmentation):
-    def __init__(self, start: int = 1, end: int = 1, k: int = 3, min_sentence_length: int = 10) -> None:
+class BlockRemoval(Augmentation):
+    def __init__(
+        self,
+        start: int = 1,
+        end: int = 1,
+        k: int = 3,
+        min_sentence_length: int = 10,
+        type_: str = "sentence",
+        span_length: int = 3,
+    ) -> None:
         self.start = start
         self.end = end
         self.k = k
         self.min_sentence_length = min_sentence_length
+        self.type_ = type_
+        self.span_length = span_length
 
-        assert self.min_sentence_length >= self.k + self.start + self.end, (
-            f"Can't create augmentor that removes {self.k} sentences"
-            f"for texts with minimum {self.min_sentence_length} sentences long"
-            f"with start = {self.start} and end = {self.end}"
-        )
+        if self.type_ == "sentence":
+            assert self.min_sentence_length >= self.k + self.start + self.end, (
+                f"Can't create augmentor that removes {self.k} sentences"
+                f"for texts with minimum {self.min_sentence_length} sentences long"
+                f"with start = {self.start} and end = {self.end}"
+            )
+
+        assert self.type_ in ["sentence", "word", "span"], f"Invalid type {self.type_} was chose"
 
     def __call__(self, text: str) -> str | None:
         if text is None:
             return None
-        sentences = [sentence.strip() for sentence in text.strip().split(".") if sentence.strip()]
-        if len(sentences) < self.min_sentence_length:
-            return None
-        indices_to_remove = random.sample(range(self.start, len(sentences) - self.end), k=self.k)
-        augmented_sentences = [sentence for i, sentence in enumerate(sentences) if i not in indices_to_remove]
-        return ". ".join(augmented_sentences) + "."
+        if self.type_ == "sentence":
+            sentences = [sentence.strip() for sentence in text.strip().split(".") if sentence.strip()]
+            if len(sentences) < self.min_sentence_length:
+                return None
+            indices_to_remove = random.sample(range(self.start, len(sentences) - self.end), k=self.k)
+            augmented_sentences = [sentence for i, sentence in enumerate(sentences) if i not in indices_to_remove]
+            return ". ".join(augmented_sentences) + "."
+        elif self.type_ == "word":
+            sentences = [sentence.strip() for sentence in text.strip().split(".") if sentence.strip()]
+            start_sents_len = len(" ".join(sentences[: self.start]).split(" "))
+            end_sents_len = len(" ".join(sentences[-self.end :]).split(" "))
+            if (len(text.split(" ")) - end_sents_len - start_sents_len) < self.k:
+                return None
+            indices_to_remove = random.sample(range(start_sents_len, len(text.split(" ")) - end_sents_len), k=self.k)
+            augmented_words = [word for i, word in enumerate(text.split(" ")) if i not in indices_to_remove]
+            return " ".join(augmented_words)
+        elif self.type_ == "span":
+            left_to_remove = self.k
+            text_copy = text[:]
+            sentences = [sentence.strip() for sentence in text_copy.strip().split(".") if sentence.strip()]
+            start_sents_len = len(" ".join(sentences[: self.start]).split(" "))
+            end_sents_len = len(" ".join(sentences[-self.end :]).split(" "))
+            while left_to_remove:
+                index_to_remove = random.sample(range(start_sents_len, len(text_copy.split(" ")) - end_sents_len), k=1)[
+                    0
+                ]
+                augmented_words = [
+                    word
+                    for i, word in enumerate(text_copy.split(" "))
+                    if i not in range(index_to_remove, index_to_remove + self.span_length)
+                ]
+                text_copy = " ".join(augmented_words)
+                left_to_remove -= 1
+            return text_copy
+        else:
+            raise ValueError()
 
     def __str__(self) -> str:
-        return "sentence-removal"
+        return f"{self.type_}-removal"
 
 
 class SetenceShuffle(Augmentation):
@@ -106,8 +149,8 @@ def get_augmentations(augs_type: list[str], augmentations_config: dict[str, Any]
         config = augmentations_config.get(type_, {}) if augmentations_config is not None else {}
         augmentation: Augmentation
         match type_:
-            case "sentence-removal":
-                augmentation = SentenceRemoval(**config)
+            case "word-removal" | "sentence-removal" | "span-removal":
+                augmentation = BlockRemoval(**config, type_=type_.split("-")[0])
             case "sentence-shuffle":
                 augmentation = SetenceShuffle(**config)
             case "keyboard-swapping":

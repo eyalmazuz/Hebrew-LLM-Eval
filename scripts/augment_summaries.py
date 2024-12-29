@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         nargs="+",
         required=True,
-        choices=["sentence-removal", "sentence-shuffle", "keyboard-swapping"],
+        choices=["word-removal", "sentence-removal", "span-removal", "sentence-shuffle", "keyboard-swapping"],
         help="Which type of augmentations to use on the texts",
     )
     parser.add_argument(

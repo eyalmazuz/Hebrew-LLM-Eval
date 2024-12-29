@@ -16,11 +16,18 @@ from PyQt5.QtWidgets import (
 )
 
 from src.gui.data_manager import DataManager
-from src.gui.highlighter import KeyboardSwapHighlighter, SentenceRemovalHighlighter, SentenceShuffleHighlighter
+from src.gui.highlighter import (
+    KeyboardSwapHighlighter,
+    SentenceRemovalHighlighter,
+    SentenceShuffleHighlighter,
+    WordRemovalHighlighter,
+)
 
 # Dictionary mapping augmentation type to strategy
 HIGHLIGHTER_STRATEGIES = {
     "sentence-removal": SentenceRemovalHighlighter(),
+    "word-removal": WordRemovalHighlighter(),
+    "span-removal": WordRemovalHighlighter(),
     "sentence-shuffle": SentenceShuffleHighlighter(),
     "keyboard-swapping": KeyboardSwapHighlighter(),
 }

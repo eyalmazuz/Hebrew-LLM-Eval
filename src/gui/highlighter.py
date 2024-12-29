@@ -41,6 +41,36 @@ class SentenceRemovalHighlighter(Highlighter):
                 break
 
 
+class WordRemovalHighlighter(Highlighter):
+    def highlight(self, original_text, augmented_text, original_text_edit):
+        original_words = original_text.split()
+        augmented_words = augmented_text.split()
+
+        # Use an iterator for the augmented words to ensure positional matching
+        augmented_iter = iter(augmented_words)
+        augmented_word = next(augmented_iter, None)  # Get the first word from the iterator
+
+        for index, word in enumerate(original_words):
+            if word == augmented_word:
+                # Move to the next word in augmented_words
+                augmented_word = next(augmented_iter, None)
+            else:
+                # If the word is not matched, it's considered removed
+                self.highlight_word(word, index, original_text_edit)
+
+    def highlight_word(self, word, idx, original_text_edit):
+        doc = original_text_edit.document()
+        full_text = doc.toPlainText().split()
+
+        if idx < len(full_text):
+            start_char = sum(len(w) + 1 for w in full_text[:idx])  # +1 for space
+            end_char = start_char + len(word)
+
+            highlight_format = QTextCharFormat()
+            highlight_format.setBackground(QBrush(QColor(255, 255, 0, 128)))
+            highlight_range(original_text_edit, start_char, end_char, highlight_format)
+
+
 class SentenceShuffleHighlighter(Highlighter):
     def highlight(self, original_text, augmented_text, original_text_edit):
         original_lines = [line.strip() for line in original_text.split(".") if line.strip()]
