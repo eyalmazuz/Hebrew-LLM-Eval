@@ -61,6 +61,8 @@ class BlockRemoval(Augmentation):
             sentences = [sentence.strip() for sentence in text_copy.strip().split(".") if sentence.strip()]
             start_sents_len = len(" ".join(sentences[: self.start]).split(" "))
             end_sents_len = len(" ".join(sentences[-self.end :]).split(" "))
+            if (len(text.split(" ")) - end_sents_len - start_sents_len) < self.k * self.span_length:
+                return None
             while left_to_remove:
                 index_to_remove = random.sample(range(start_sents_len, len(text_copy.split(" ")) - end_sents_len), k=1)[
                     0

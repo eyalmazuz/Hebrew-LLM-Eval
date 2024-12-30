@@ -9,6 +9,8 @@ class DataManager:
 
     def load_csv(self, file_name):
         df = pd.read_csv(file_name)
+        if "marked" not in df.columns:
+            df["marked"] = False
         if all(col in df.columns for col in ["original-text", "augmented-text", "augmentation"]):
             self.df = df
             self.filtered_df = df
@@ -96,3 +98,13 @@ class DataManager:
             current_global_index = self.filtered_df.index[current_index]
             self.df.at[current_global_index, "augmented-text"] = new_text
             self.filtered_df.at[current_global_index, "augmented-text"] = new_text
+
+    def set_marked(self, current_index, checked):
+        """
+        Updates the 'marked' column for the currently displayed row in both
+        the original df and the filtered df.
+        """
+        if self.filtered_df is not None and 0 <= current_index < len(self.filtered_df):
+            current_global_index = self.filtered_df.index[current_index]
+            self.df.at[current_global_index, "marked"] = checked
+            self.filtered_df.at[current_global_index, "marked"] = checked

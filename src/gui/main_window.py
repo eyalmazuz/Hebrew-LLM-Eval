@@ -1,6 +1,7 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QAction,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QHBoxLayout,
@@ -55,6 +56,10 @@ class MainWindow(QMainWindow):
         save_action.triggered.connect(self.save_csv)
         toolbar.addAction(save_action)
 
+        export_action = QAction("Export Marked", self)
+        export_action.triggered.connect(self.export_marked_rows)
+        toolbar.addAction(export_action)
+
         # Filter combo box
         self.filter_combo = QComboBox()
         self.filter_combo.addItem("all")
@@ -65,7 +70,7 @@ class MainWindow(QMainWindow):
 
         font_size_spinbox = QSpinBox()
         font_size_spinbox.setRange(6, 72)  # Set a sensible range of font sizes
-        font_size_spinbox.setValue(14)  # Default font size
+        font_size_spinbox.setValue(12)  # Default font size
         font_size_spinbox.setToolTip("Change Font Size")
         font_size_spinbox.valueChanged.connect(self.change_font_size)
         toolbar.addWidget(font_size_spinbox)
@@ -74,6 +79,29 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+
+        # Create a horizontal layout for the checkbox + label
+        mark_layout = QHBoxLayout()
+
+        self.mark_checkbox = QCheckBox("Marked")
+        self.mark_checkbox.setToolTip("Mark/Unmark this row for export.")
+        self.mark_checkbox.stateChanged.connect(self.on_marked_changed)
+
+        self.mark_count_label = QLabel("Marked: 0")
+
+        # Add the checkbox and the label to mark_layout
+        mark_layout.addWidget(self.mark_checkbox)
+        mark_layout.addWidget(self.mark_count_label)
+
+        # Optionally add a stretch to push them to the left (or right)
+        mark_layout.addStretch()
+        mark_layout.setAlignment(Qt.AlignRight)
+        # Now add the entire mark_layout to the main_layout
+        main_layout.addLayout(mark_layout)
+
+        # Label to show "Row X / Y"
+        self.row_label = QLabel("Row 0 / 0")
+        main_layout.addWidget(self.row_label)
 
         # Augmentation label
         self.augmentation_label = QLabel("Augmentation Type: ")
@@ -156,6 +184,7 @@ class MainWindow(QMainWindow):
                 self.current_index = 0
                 self.display_row(self.current_index)
                 self.update_navigation_buttons()
+                self.update_marked_count()
             else:
                 self.data_manager.clear()
                 self.clear_display()
@@ -210,14 +239,41 @@ class MainWindow(QMainWindow):
             if highlighter is not None:
                 highlighter.highlight(original_text, augmented_text, self.original_text_edit)
 
+            # Make sure the checkbox reflects the row's "marked" state
+            is_marked = bool(row["marked"])  # or row.get("marked", False)
+            self.mark_checkbox.setChecked(is_marked)
+
             self.data_changed = False
             self.apply_button.setEnabled(False)
+
+            self.update_row_label()
         else:
             self.clear_display()
+
+    def update_row_label(self):
+        """Shows the row index and total number of rows (e.g. "Row 3 / 10")."""
+        if self.data_manager.filtered_df is not None and len(self.data_manager.filtered_df) > 0:
+            total_rows = len(self.data_manager.filtered_df)
+            # Convert to 1-based for user-friendliness
+            current_row = self.current_index + 1
+            self.row_label.setText(f"Row {current_row} / {total_rows}")
+        else:
+            self.row_label.setText("Row 0 / 0")
+
+    def update_marked_count(self):
+        if self.data_manager.df is not None:
+            count = self.data_manager.df["marked"].sum()  # Number of True in 'marked' column
+            self.mark_count_label.setText(f"Marked: {count}")
+        else:
+            self.mark_count_label.setText("Marked: 0")
 
     def clear_display(self):
         self.original_text_edit.clear()
         self.augmented_text_edit.clear()
+        self.mark_checkbox.setChecked(False)
+        self.augmentation_label.setText("")
+        self.apply_button.setEnabled(False)
+        self.row_label.setText("Row 0 / 0")
 
     def update_navigation_buttons(self):
         if self.data_manager.filtered_df is None or len(self.data_manager.filtered_df) == 0:
@@ -254,3 +310,22 @@ class MainWindow(QMainWindow):
 
             self.data_changed = False
             self.apply_button.setEnabled(False)
+
+    def on_marked_changed(self, state):
+        if self.data_manager.filtered_df is not None and 0 <= self.current_index < len(self.data_manager.filtered_df):
+            checked = state == Qt.Checked
+            # Use DataManager to update
+            self.data_manager.set_marked(self.current_index, checked)
+
+            self.update_marked_count()
+
+    def export_marked_rows(self):
+        # Use data_manager.df rather than self.df
+        if self.data_manager.df is not None and "marked" in self.data_manager.df.columns:
+            # Use == True (not 'is True') to mask rows correctly
+            marked_df = self.data_manager.df[self.data_manager.df["marked"]]
+            df = marked_df.drop(columns=["marked"], inplace=False)
+            if not df.empty:
+                file_name, _ = QFileDialog.getSaveFileName(self, "Export Marked Rows", "", "CSV Files (*.csv)")
+                if file_name:
+                    df.to_csv(file_name, index=False)
