@@ -13,23 +13,33 @@ from src.augmentations import get_augmentations
 from src.utils import extract_texts, load_data
 
 
+def validate_augmentations(string: str) -> str:
+    choices = [
+        "word-removal",
+        "sentence-removal",
+        "span-removal",
+        "sentence-shuffle",
+        "keyboard-swapping",
+        "fasttext",
+    ]
+    sub_types = string.split("+") if "+" in string else [string]
+
+    for type_ in sub_types:
+        if type_ not in choices:
+            raise ValueError("Invalid choice")
+
+    return string
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input-path", type=str, required=True, help="Path to the summaries data to augment")
     parser.add_argument("-o", "--output-path", type=str, required=True, help="Path to save the augmented summaries")
     parser.add_argument(
         "--augmentations",
-        type=str,
+        type=validate_augmentations,
         nargs="+",
         required=True,
-        choices=[
-            "word-removal",
-            "sentence-removal",
-            "span-removal",
-            "sentence-shuffle",
-            "keyboard-swapping",
-            "fasttext",
-        ],
         help="Which type of augmentations to use on the texts",
     )
     parser.add_argument(

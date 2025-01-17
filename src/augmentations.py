@@ -151,7 +151,7 @@ class KeyboardSwap(Augmentation):
 class FasttextSwap(Augmentation):
     def __init__(
         self,
-        model_path: str = "./data/cc.he.300.bin",
+        model_path: str = "./data/augmentation_models/cc.he.300.bin",
         word_p: float = 0.05,
     ) -> None:
         assert 0.0 <= word_p <= 1.0, "the word replacement probability can only be between 0 and 1"
@@ -173,21 +173,52 @@ class FasttextSwap(Augmentation):
         return "fasttext"
 
 
+class ChainedAugmentation(Augmentation):
+    def __init__(self, augmentations: list["Augmentation"]) -> None:
+        self.augmentations = augmentations
+
+    def __call__(self, text: str) -> str | None:
+        augmented_text: str | None = text
+
+        for augmentation in self.augmentations:
+            if augmented_text is not None:
+                augmented_text = augmentation(augmented_text)
+                if augmented_text is None:
+                    return None
+            else:
+                return None
+
+        return augmented_text
+
+    def __str__(self) -> str:
+        return "+".join(str(aug) for aug in self.augmentations)
+
+
 def get_augmentations(augs_type: list[str], augmentations_config: dict[str, Any] | None) -> list[Augmentation]:
     augmentations: list[Augmentation] = []
     for type_ in augs_type:
-        config = augmentations_config.get(type_, {}) if augmentations_config is not None else {}
-        augmentation: Augmentation
-        match type_:
-            case "word-removal" | "sentence-removal" | "span-removal":
-                augmentation = BlockRemoval(**config, type_=type_.split("-")[0])
-            case "sentence-shuffle":
-                augmentation = SetenceShuffle(**config)
-            case "keyboard-swapping":
-                augmentation = KeyboardSwap(**config)
-            case "fasttext":
-                augmentation = FasttextSwap(**config)
-            case _:
-                raise ValueError(f"{type_} is not a valid augmentation")
+        if "+" in type_:
+            types: list[str] = type_.split("+")
+        else:
+            types = [type_]
+
+        sub_augmentations: list[Augmentation] = []
+        for sub_type in types:
+            config = augmentations_config.get(sub_type, {}) if augmentations_config is not None else {}
+            match sub_type:
+                case "word-removal" | "sentence-removal" | "span-removal":
+                    sub_augmentations.append(BlockRemoval(**config, type_=sub_type.split("-")[0]))
+                case "sentence-shuffle":
+                    sub_augmentations.append(SetenceShuffle(**config))
+                case "keyboard-swapping":
+                    sub_augmentations.append(KeyboardSwap(**config))
+                case "fasttext":
+                    sub_augmentations.append(FasttextSwap(**config))
+                case _:
+                    raise ValueError(f"{sub_type} is not a valid augmentation")
+            if len(sub_augmentations) > 1:
+                augmentation: Augmentation = ChainedAugmentation(sub_augmentations)
+            else:
+                augmentation = sub_augmentations[0]
         augmentations.append(augmentation)
     return augmentations
