@@ -31,6 +31,7 @@ HIGHLIGHTER_STRATEGIES = {
     "span-removal": WordRemovalHighlighter(),
     "sentence-shuffle": SentenceShuffleHighlighter(),
     "keyboard-swapping": KeyboardSwapHighlighter(),
+    "fasttext": KeyboardSwapHighlighter(),
 }
 
 

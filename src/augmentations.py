@@ -3,6 +3,9 @@ import random
 from abc import ABC, abstractmethod
 from typing import Any
 
+import fasttext
+import fasttext.util
+
 
 class Augmentation(ABC):
     @abstractmethod
@@ -145,6 +148,31 @@ class KeyboardSwap(Augmentation):
         return "keyboard-swapping"
 
 
+class FasttextSwap(Augmentation):
+    def __init__(
+        self,
+        model_path: str = "./data/cc.he.300.bin",
+        word_p: float = 0.05,
+    ) -> None:
+        assert 0.0 <= word_p <= 1.0, "the word replacement probability can only be between 0 and 1"
+
+        self.model = fasttext.load_model(model_path)
+        fasttext.util.reduce_model(self.model, 100)
+        self.word_p = word_p
+
+    def __call__(self, text: str) -> str | None:
+        words: list[str] = text.split()
+        for word_idx, word in enumerate(words):
+            if random.random() < self.word_p:
+                neighbors = self.model.get_nearest_neighbors(word=word, k=5)
+                words[word_idx] = random.sample(neighbors, k=1)[0][1]
+
+        return " ".join(words)
+
+    def __str__(self) -> str:
+        return "fasttext"
+
+
 def get_augmentations(augs_type: list[str], augmentations_config: dict[str, Any] | None) -> list[Augmentation]:
     augmentations: list[Augmentation] = []
     for type_ in augs_type:
@@ -157,6 +185,8 @@ def get_augmentations(augs_type: list[str], augmentations_config: dict[str, Any]
                 augmentation = SetenceShuffle(**config)
             case "keyboard-swapping":
                 augmentation = KeyboardSwap(**config)
+            case "fasttext":
+                augmentation = FasttextSwap(**config)
             case _:
                 raise ValueError(f"{type_} is not a valid augmentation")
         augmentations.append(augmentation)

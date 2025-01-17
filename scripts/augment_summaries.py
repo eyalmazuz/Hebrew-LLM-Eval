@@ -7,6 +7,7 @@ from functools import partial
 from itertools import chain
 
 import pandas as pd
+from tqdm.auto import tqdm
 
 from src.augmentations import get_augmentations
 from src.utils import extract_texts, load_data
@@ -21,7 +22,14 @@ def parse_args() -> argparse.Namespace:
         type=str,
         nargs="+",
         required=True,
-        choices=["word-removal", "sentence-removal", "span-removal", "sentence-shuffle", "keyboard-swapping"],
+        choices=[
+            "word-removal",
+            "sentence-removal",
+            "span-removal",
+            "sentence-shuffle",
+            "keyboard-swapping",
+            "fasttext",
+        ],
         help="Which type of augmentations to use on the texts",
     )
     parser.add_argument(
@@ -75,7 +83,7 @@ def main(args: argparse.Namespace) -> None:
 
     results: Iterator[list[dict[str, str]]]
     if args.num_processes == -1:
-        results = map(augment_text_partial, texts)
+        results = map(augment_text_partial, tqdm(texts))
 
     else:
         print("Running multi-processing")
