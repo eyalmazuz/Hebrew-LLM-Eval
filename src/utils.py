@@ -11,7 +11,7 @@ IDX2SOURCE = {
 }
 
 
-def load_data(path: str) -> list[dict[str, Any]]:
+def load_data(path: str, randomize: bool = False) -> list[dict[str, Any]]:
     try:
         with open(path) as fd:
             summaries = [json.loads(line) for line in fd]
@@ -20,6 +20,9 @@ def load_data(path: str) -> list[dict[str, Any]]:
     except json.JSONDecodeError as e:
         # Re-raise the JSONDecodeError with the same or modified details
         raise json.JSONDecodeError(f"Error decoding JSON in file {path}: {e.msg}", e.doc, e.pos)
+
+    if randomize:
+        random.shuffle(summaries)
 
     return summaries
 

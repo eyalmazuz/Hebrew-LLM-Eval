@@ -50,7 +50,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-examples", type=int, default=-1, help="The maximum number of examples to generate augmentatios for"
     )
-
+    parser.add_argument(
+        "--randomize",
+        action="store_true",
+        help="""Whether to randomize the summaries before augmenting.
+        This will helps when using the --max-examples flag and only augmenting certain number of summaries.
+        So that it'll not augment the same summaries over and over again""",
+    )
     parser.add_argument(
         "--num-processes", type=int, default=-1, help="The number of threads to use when running augmentations"
     )
@@ -77,7 +83,7 @@ def augment_text_multiple(text: str, augmentations) -> list[dict[str, str]]:
 
 
 def main(args: argparse.Namespace) -> None:
-    summaries = load_data(args.input_path)
+    summaries = load_data(args.input_path, randomize=args.randomize)
     texts = extract_texts(summaries=summaries, only_summaries=True, use_ai_summaries=False)
     if args.max_examples != -1:
         texts = texts[: args.max_examples]
