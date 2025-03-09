@@ -15,7 +15,7 @@ from datetime import datetime
 
 def ensure_output_dir():
     """Create output directory if it doesn't exist."""
-    output_dir = "./data/output"
+    output_dir = "./Data/output"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"Created output directory: {output_dir}")
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run article and summary matching.")
     parser.add_argument("--data", type=str, required=True, help="Dataset name (e.g., biunlp/HeSum or custom).")
     parser.add_argument("--path", type=str, help="Path to custom dataset JSON.")
-    parser.add_argument("--model", type=str, required=True, choices=["ME5", "TF-IDF", "BM25"], help="Matching method.")
+    # parser.add_argument("--model", type=str, required=True, choices=["ME5", "TF-IDF", "BM25"], help="Matching method.")
     parser.add_argument("--num_articles", type=int, default=5, help="Number of articles to process.")
     args = parser.parse_args()
 
@@ -223,15 +223,15 @@ if __name__ == '__main__':
         print("Dataset loaded and preprocessed.")
 
         # Set up the matching function
-        if args.model == "TF-IDF":
-            print("Training Word Embeddings for TF-IDF...")
-            word_embeddings = train_embeddings(dataset)
-            print("Embeddings trained successfully.")
-            match_fn = lambda src, tgt: match_tfidf(src, tgt, word_embeddings)
-        elif args.model == "ME5":
-            match_fn = create_matching_matrix_with_e5
-        elif args.model == "BM25":
-            match_fn = create_matching_matrix_with_bm25_and_cosine
+        # if args.model == "TF-IDF":
+        #     print("Training Word Embeddings for TF-IDF...")
+        #     word_embeddings = train_embeddings(dataset)
+        #     print("Embeddings trained successfully.")
+        #     match_fn = lambda src, tgt: match_tfidf(src, tgt, word_embeddings)
+        # elif args.model == "ME5":
+        match_fn = create_matching_matrix_with_e5
+        # elif args.model == "BM25":
+        #     match_fn = create_matching_matrix_with_bm25_and_cosine
 
         # Process and display results, and save to CSV
         dataset_name = args.path if args.path else args.data

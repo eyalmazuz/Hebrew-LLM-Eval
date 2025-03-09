@@ -1,0 +1,4 @@
+Article_ID,Num_Source_Sentences,Num_Target_Sentences,Average_Match_Score,Max_Match_Score,Min_Match_Score
+0,48,12,0.82979625,0.9356692,0.6637137
+1,116,5,0.83191043,0.91561484,0.689311
+2,70,13,0.8144782,0.9404739,0.7482674
