@@ -66,6 +66,10 @@ def compute_stance_preservation(df, model, tokenizer):
         # summary_stance_scores.append(f"{summary_stance} ({summary_score:.4f})")
         # article_stance_scores.append(f"{article_stance} ({article_score:.4f})")
         
+        """
+        We want the KL to be small when the summary and article have similar stances.
+        """
+        # KL on rows
         kl_score = kl_divergence(summary_probs[0], article_probs[0])
         kl_divergences.append(kl_score)
         
