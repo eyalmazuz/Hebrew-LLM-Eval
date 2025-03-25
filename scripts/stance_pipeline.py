@@ -1,8 +1,8 @@
 # split article and summary into sentences
 # use Me5 as the matching method (sentence matching file)
-# use stance detection/sentiment analysis model to classify the sentences that containes stances for both article and summary
+# use stance detection/sentiment analysis model to classify the sentences that contains stances for both article and summary
 # classify the stance for each sentence (favor, neutral, against) for both article and summary 
-# check stance presevation for each sentence in the article and summary by calculating the difference (or KL-divergence) between the stances of the sentences in the article and summary
+# check stance preservation for each sentence in the article and summary by calculating the difference (or KL-divergence) between the stances of the sentences in the article and summary
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch

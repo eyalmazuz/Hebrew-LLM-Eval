@@ -20,6 +20,8 @@ def preprocess_custom(file_path):
             record = json.loads(line)
             source_text = record.get('text_raw', "")
             summary_text = record.get('summary', "")
+            if source_text == "" or summary_text == "":
+                continue
             articles.append(source_text)
             summaries.append(summary_text)
 
