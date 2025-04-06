@@ -9,6 +9,8 @@ from src.data_loader import load_data
 from src.models.me5 import create_matching_matrix_with_e5
 import argparse
 from src.utils import ensure_output_dir, process_and_display_results, load_model, compute_stance_preservation
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run article and summary matching.")
@@ -43,7 +45,8 @@ if __name__ == '__main__':
     # df = load_matching_matrix(path_to_csv)
     
     # Load model and tokenizer
-    model_name = 'dicta-il/dictabert-sentiment'
+    # model_name = 'dicta-il/dictabert-sentiment'
+    model_name = 'fine_tuned_dictabert'
     model, tokenizer = load_model(model_name)
     
     # Classify stance for each sentence in article and summary

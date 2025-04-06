@@ -11,8 +11,8 @@ from evaluate import load
 import numpy as np
 import os
 
-LABEL_MAPPING = {"מתנגד": 0, "נייטרלי": 1, "תומך": 2}
-REVERSE_LABEL_MAPPING = {0: "מתנגד", 1: "נייטרלי", 2: "תומך"}
+LABEL_MAPPING = {"against": 0, "neutral": 1, "support": 2}
+REVERSE_LABEL_MAPPING = {0: "against", 1: "neutral", 2: "support"}
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -99,141 +99,159 @@ def evaluate_model(model, eval_dataloader):
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     preds = np.argmax(logits, axis=-1).tolist()
-    metric = load("accuracy")
-    accuracy = metric.compute(predictions=preds, references=labels)
-    
-    # Add F1 score calculation
-    f1_metric = load("f1")
-    f1_macro = f1_metric.compute(predictions=preds, references=labels, average="macro")
-    
-    return {
-        "accuracy": accuracy["accuracy"],
-        "f1_macro": f1_macro["f1"]
-    }
+    accuracy = load("accuracy").compute(predictions=preds, references=labels)
+    f1_macro = load("f1").compute(predictions=preds, references=labels, average="macro")
+    return {"accuracy": accuracy["accuracy"], "f1_macro": f1_macro["f1"]}
 
 
 if __name__ == '__main__':
     try:
-        # Load dataset
-        path_to_csv = 'Data/isStance_dataset.csv'
+        path_to_csv = './Data/Hebrew_stance_dataset.csv'
         if not os.path.exists(path_to_csv):
             raise FileNotFoundError(f"Dataset file not found: {path_to_csv}")
             
         df = pd.read_csv(path_to_csv)
         print(f"Dataset loaded successfully. Total samples: {len(df)}")
 
-        # Extract columns
-        texts = df["text"].tolist()
-        topics = df["topic"].tolist()
-        labels = df["stance"].tolist()
+        texts = df["Text"].tolist()
+        topics = df["Topic"].tolist()
+        labels = df["Stance"].tolist()
 
-        # Split dataset into train and validation sets
         train_texts, temp_texts, train_topics, temp_topics, train_labels, temp_labels = train_test_split(
-            texts, topics, labels, test_size=0.3, random_state=42
+            texts, topics, labels, test_size=0.2, random_state=42
         )
         eval_texts, test_texts, eval_topics, test_topics, eval_labels, test_labels = train_test_split(
             temp_texts, temp_topics, temp_labels, test_size=0.5, random_state=42
         )
-        
+
         print(f"Training samples: {len(train_texts)}")
         print(f"Validation samples: {len(eval_texts)}")
         print(f"Test samples: {len(test_texts)}")
 
-        # Load model and tokenizer
         model_name = 'dicta-il/dictabert-sentiment'
-        model, tokenizer = load_model(model_name)
+        _, tokenizer = load_model(model_name)
 
-        # Prepare datasets
         train_dataset = StanceDataset(train_texts, train_topics, train_labels, tokenizer)
         eval_dataset = StanceDataset(eval_texts, eval_topics, eval_labels, tokenizer)
         test_dataset = StanceDataset(test_texts, test_topics, test_labels, tokenizer)
 
-        # Create DataLoaders
-        train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=8)
-        eval_dataloader = DataLoader(eval_dataset, batch_size=8, shuffle=False)
+        output_dir = 'fine_tuned_dictabert'
+        os.makedirs(output_dir, exist_ok=True)
+
+# ------------------------------------------------------------ OpTuna  ------------------------------------------------------------
+        def model_init():
+            return AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=3)
+
+        def hp_space_optuna(trial):
+            return {
+                "learning_rate": trial.suggest_float("learning_rate", 1e-5, 5e-4, log=True),
+                "num_train_epochs": trial.suggest_int("num_train_epochs", 3, 10),
+                "per_device_train_batch_size": trial.suggest_categorical("per_device_train_batch_size", [8, 16]),
+                "weight_decay": trial.suggest_float("weight_decay", 0.0, 0.3),
+                "warmup_steps": trial.suggest_int("warmup_steps", 0, 500),
+            }
+
+        # Default args (will be overridden)
+        base_training_args = TrainingArguments(
+            output_dir=output_dir,
+            eval_strategy="steps",
+            save_strategy="steps",
+            logging_strategy="steps",
+            logging_steps=50,
+            eval_steps=200,
+            save_steps=200,
+            load_best_model_at_end=True,
+            save_total_limit=1,
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,
+            fp16=True,
+            gradient_checkpointing=True,
+            remove_unused_columns=False
+        )
+
+        print("\nStarting Optuna hyperparameter search...")
+        trainer = Trainer(
+            model_init=model_init,
+            args=base_training_args,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer
+        )
+
+        best_trial = trainer.hyperparameter_search(
+            direction="maximize",
+            hp_space=hp_space_optuna,
+            backend="optuna",
+            n_trials=10
+        )
+
+        print("Best trial hyperparameters:", best_trial.hyperparameters)
 
 # ------------------------------------------------------------ Training ------------------------------------------------------------
-        output_dir = 'fine_tuned_dictabert_2'
+        output_dir = 'fine_tuned_dictabert'
         
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
 
-        training_args = TrainingArguments(
-            # Learning rate
-            learning_rate=2e-5,
-
-            # Number of training epochs
-            num_train_epochs=3,
-
-            # Batch size for training
-            per_device_train_batch_size=8,
-
-            # Directory to save model checkpoints
+        # Retrain with best params
+        final_training_args = TrainingArguments(
             output_dir=output_dir,
-
-            # Other arguments
-            overwrite_output_dir=False, # Overwrite the content of the output directory
-            disable_tqdm=False, # Disable progress bars
-            eval_steps=200, # Number of update steps between two evaluations
-            save_steps=200, # After # steps model is saved
-            weight_decay=0.01,
-            warmup_steps=500, # Number of warmup steps for learning rate scheduler
-            per_device_eval_batch_size=8, # Batch size for evaluation
             evaluation_strategy="steps",
             save_strategy="steps",
             logging_strategy="steps",
             logging_steps=50,
-            gradient_accumulation_steps=4,
-            fp16=True,  # Enable mixed precision
-            gradient_checkpointing=True,
-
-            # Parameters for early stopping
+            eval_steps=200,
+            save_steps=200,
             load_best_model_at_end=True,
             save_total_limit=1,
             metric_for_best_model="eval_loss",
-            greater_is_better=False
+            greater_is_better=False,
+            fp16=True,
+            gradient_checkpointing=True,
+            remove_unused_columns=False,
+            **best_trial.hyperparameters
         )
 
-        trainer = Trainer(
-            model=model,
-            args=training_args,
+        final_trainer = Trainer(
+            model_init=model_init,
+            args=final_training_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            compute_metrics=compute_metrics
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer
         )
 
-        # Execute training
-        trainer.train()
+        print("\nTraining with best hyperparameters...")
+        final_trainer.train()
+        final_trainer.save_model(output_dir)
+        tokenizer.save_pretrained(output_dir)
 
         # Save final model
-        trainer.save_model(output_dir)  # This saves both model and tokenizer
+        final_trainer.save_model(output_dir)  # This saves both model and tokenizer
         tokenizer.save_pretrained(output_dir)
         print(f"Training complete. Model saved to {output_dir}")
 
-        # Evaluate on test set
-        print("\nEvaluating fine-tuned model on test set...")
-        finetuned_model = AutoModelForSequenceClassification.from_pretrained(output_dir)
-        finetuned_model.to(device)
-        
-        # Create test dataloader for evaluation
-        test_dataloader = DataLoader(test_dataset, batch_size=8, shuffle=False)
-        test_results = evaluate_model(finetuned_model, test_dataloader)
-        print(f"Test accuracy: {test_results['accuracy']:.4f}")
-        
-        # Display sample prediction
+# ------------------------------------------------------------ Evaluation ------------------------------------------------------------
+        print("\nTraining complete. Evaluating on test set...")
+        final_model = AutoModelForSequenceClassification.from_pretrained(output_dir).to(device)
+        test_dataloader = DataLoader(test_dataset, batch_size=8)
+        test_results = evaluate_model(final_model, test_dataloader)
+
+        print(f"Test Accuracy: {test_results['accuracy']:.4f}")
+
         sample_idx = 0
         sample_text = test_texts[sample_idx]
-        sample_topic = test_topics[sample_idx] 
+        sample_topic = test_topics[sample_idx]
         sample_label = test_labels[sample_idx]
-        
-        prediction = predict_stance(sample_text, sample_topic, finetuned_model, tokenizer)
-        
+        prediction = predict_stance(sample_text, sample_topic, final_model, tokenizer)
+
         print("\nSample prediction:")
         print(f"Text: {sample_text}")
         print(f"Topic: {sample_topic}")
         print(f"True stance: {sample_label}")
         print(f"Predicted stance: {prediction}")
-        
+
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
