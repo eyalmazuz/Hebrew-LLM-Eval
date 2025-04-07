@@ -10,7 +10,7 @@ try:
     # Download 'punkt' resource if not already downloaded
     try:
         nltk.data.find("tokenizers/punkt")
-    except nltk.downloader.DownloadError:
+    except LookupError:
         print("NLTK 'punkt' resource not found. Downloading...")
         nltk.download("punkt", quiet=True)
     from nltk.tokenize import sent_tokenize  # type: ignore
