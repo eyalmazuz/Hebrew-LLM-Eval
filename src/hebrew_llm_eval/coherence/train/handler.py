@@ -4,16 +4,6 @@ import sys
 
 from .core import run_training  # Import the core logic
 
-# def handle_train_cli(args):
-#     texts = load_data(args.data_path)
-#     train_set, test_set = get_train_test_split(texts, args.test_size)
-#     train_set, val_set = get_train_test_split(train_set, args.val_size)
-
-#     train_dataset = ShuffleDataset(train_set, args.k_max, args.model_name)
-#     val_dataset = ShuffleDataset(val_set, args.k_max, args.model_name)
-
-#     run_training()
-
 
 def handle_train_cli(args: argparse.Namespace) -> None:
     """

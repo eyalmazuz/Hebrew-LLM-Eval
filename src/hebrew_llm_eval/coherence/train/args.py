@@ -21,7 +21,7 @@ def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: 
     train_parser.add_argument("--test-size", type=float, default=0.2, help="Size of the test set")
     train_parser.add_argument("--val-size", type=float, default=0.2, help="Size of the validation set")
     train_parser.add_argument("--k-max", type=int, default=20, help="Maximum number of shuffles per text")
-    train_parser.add_argument("--batch-size", type=int, default=8, help="Batch size for training")
+    train_parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training")
     train_parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
     train_parser.add_argument("--learning-rate", type=float, default=5e-5, help="Learning rate for training")
     train_parser.add_argument("--output-dir", type=str, default="./results", help="Directory to save training results")
