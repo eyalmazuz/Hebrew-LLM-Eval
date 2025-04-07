@@ -1,0 +1,32 @@
+import argparse
+
+# Import the specific handler for the 'train' command under 'coherence'
+# Adjust path/name if you changed 'handler.py' or the function name
+from .handler import handle_train_cli
+
+
+def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: argparse.ArgumentParser) -> None:
+    """Adds the 'train' subcommand to the 'coherence' parser."""
+    train_parser = subparsers.add_parser(
+        "train",
+        help="Train a coherence model.",
+        parents=[common_parser],  # Inherit common options like -v, -c
+        description="Train a model to evaluate sequence coherence.",  # More specific description
+    )
+    # Add arguments specific to the 'train' action
+    train_parser.add_argument("--data-path", type=str, required=True, help="Path to the training data file")
+    train_parser.add_argument(
+        "--model_name", type=str, default="dicta-il/alephbertgimmel-base", help="Base model name for training"
+    )
+    train_parser.add_argument("--test-size", type=float, default=0.2, help="Size of the test set")
+    train_parser.add_argument("--val-size", type=float, default=0.2, help="Size of the validation set")
+    train_parser.add_argument("--k-max", type=int, default=20, help="Maximum number of shuffles per text")
+    train_parser.add_argument("--batch-size", type=int, default=8, help="Batch size for training")
+    train_parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
+    train_parser.add_argument("--learning-rate", type=float, default=5e-5, help="Learning rate for training")
+    train_parser.add_argument("--output-dir", type=str, default="./results", help="Directory to save training results")
+    train_parser.add_argument("--device", type=str, default="cuda", help="Device for training (e.g., 'cuda', 'cpu')")
+    train_parser.add_argument("--max-length", type=int, default=512, help="the maximum length data")
+
+    # Set the default function for the 'train' command
+    train_parser.set_defaults(func=handle_train_cli)

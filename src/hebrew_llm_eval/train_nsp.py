@@ -2,7 +2,7 @@ import argparse
 import os
 
 from transformers import (
-    AutoModelForSequenceClassification,
+    AutoModelForNextSentencePrediction,
     AutoTokenizer,
     DataCollatorWithPadding,
     PreTrainedTokenizer,
@@ -11,8 +11,8 @@ from transformers import (
 )
 
 import wandb
-from src.data_utils import k_block_shuffling
-from src.datasets import SentenceOrderingDataset
+from src.data_utils import generate_negative_pairs, generate_nsp_pairs
+from src.datasets import PairDataset
 from src.train_utils import compute_metrics
 from src.utils import IDX2SOURCE, extract_texts, get_train_test_split, load_data
 
@@ -21,87 +21,77 @@ def main(args: argparse.Namespace) -> None:
     print(f"Loading data from {args.input_path}")
     summaries = load_data(args.input_path)
 
-    if args.split_type.lower() == "source":
-        if "SLURM_ARRAY_TASK_ID" in os.environ:
-            source_type = IDX2SOURCE[int(os.environ["SLURM_ARRAY_TASK_ID"])]
-        else:
-            source_type = args.source_type
+    if "SLURM_ARRAY_TASK_ID" in os.environ:
+        source_type = IDX2SOURCE[int(os.environ["SLURM_ARRAY_TASK_ID"])]
+    else:
+        source_type = args.source_type
 
     if source_type is None and args.split_type.lower() == "source":
         raise ValueError(f"Split type {args.split_type} was chosen but no source was selected")
 
-    print(f"Splitting to train test using {args.split_type} {args.source_type} {args.test_size}")
+    print(f"Splitting to train test using {args.split_type}")
     train_summaries, test_summaries = get_train_test_split(summaries, args.split_type, source_type, args.test_size)
 
     print(
         f"Generating Training data with only summaries = {args.only_summaries}, "
-        f"permutation count={args.permutation_count}, block size={args.block_size}"
+        f"negative_count count={args.negative_count}, negative type={args.negative_type}"
     )
     train_texts = extract_texts(
         train_summaries,
         args.only_summaries,
     )
-    train_positives = [(t, 1) for t in train_texts]
-    train_negatives = k_block_shuffling(
-        train_texts, permutation_count=args.permutation_count, block_size=args.block_size
+    train_positives = generate_nsp_pairs(train_texts)
+    train_negatives = generate_negative_pairs(
+        train_texts, negative_count=args.negative_count, negative_type=args.negative_type
     )
-    assert (
-        len(set(train_negatives) & set(train_positives)) == 0
-    ), "Error, train negatives and train positives have matching data points"
     train_data = train_positives + train_negatives
 
     print(
         f"Generating Test data with only summaries = {args.only_summaries}, "
-        f"permutation count={args.permutation_count}, block size={args.block_size}"
+        f"negative_count count={args.negative_count}, negative type={args.negative_type}"
     )
     test_texts = extract_texts(
         test_summaries,
         args.only_summaries,
     )
-    test_positives = [(t, 1) for t in test_texts]
-    test_negatives = k_block_shuffling(test_texts, permutation_count=args.permutation_count, block_size=args.block_size)
-
-    assert (
-        len(set(test_negatives) & set(test_positives)) == 0
-    ), "Error, test negatives and test positives have matching data points"
+    test_positives = generate_nsp_pairs(test_texts)
+    test_negatives = generate_negative_pairs(
+        test_texts, negative_count=args.negative_count, negative_type=args.negative_type
+    )
     test_data = test_positives + test_negatives
 
     print("Loading Tokenizer")
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(args.model)
     print("Creating Datasets")
-    train_dataset = SentenceOrderingDataset(train_data, tokenizer, args.max_length)
-    test_dataset = SentenceOrderingDataset(test_data, tokenizer, args.max_length)
+    train_dataset = PairDataset(train_data, tokenizer, args.max_length)
+    test_dataset = PairDataset(test_data, tokenizer, args.max_length)
 
     print(f"Train Dataset size: {len(train_dataset)}")
     print(f"Test Dataset size: {len(test_dataset)}")
 
     print(f"Loading model {args.model}")
-    model = AutoModelForSequenceClassification.from_pretrained(
+    model = AutoModelForNextSentencePrediction.from_pretrained(
         args.model,
-        num_labels=2,
         # max_position_embeddings=args.max_length if args.max_length != -1 else 512,
         ignore_mismatched_sizes=True,
-        problem_type="single_label_classification",
     )
 
     print("Creating training args")
     data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
 
-    name = (
-        f"Ordering_{args.model}_{args.split_type}_{source_type}_{args.permutation_count}_{args.block_size}"
-    ).replace("/", "_")
+    name = (f"NSP_{args.model}_{args.split_type}_{source_type}_{args.negative_count}").replace("/", "_")
 
     wandb.init(  # type: ignore
         name=name,
         project=os.environ.get("WANDB_PROJECT", None),
         entity=os.environ.get("WANDB_ENTITY", None),
-        group="Sentence_Ordering",
+        group="NSP",
         config={
             "source_type": args.source_type,
             "split_type": args.split_type,
+            "negative_count": args.negative_count,
+            "negative_type": args.negative_type,
             "only_summaries": args.only_summaries,
-            "permutation_count": args.permutation_count,
-            "block_size": args.block_size,
         },
     )
 
@@ -188,16 +178,24 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--only-summaries",
-        action="store_true",
-        help="Whether to only use the summaries when training the model",
+        "--negative-count",
+        type=int,
+        default=5,
+        help="How many negatives to generate for each pair",
     )
 
     parser.add_argument(
-        "--permutation-count",
-        type=int,
-        default=5,
-        help="How many permutation to perform for each text instance",
+        "--negative-type",
+        type=str,
+        default="in-pair",
+        choices=["in-pair", "any"],
+        help="type of negatives to generate for each pair",
+    )
+
+    parser.add_argument(
+        "--only-summaries",
+        action="store_true",
+        help="Whether or not to use only summaries for the training",
     )
 
     parser.add_argument(
@@ -208,13 +206,6 @@ if __name__ == "__main__":
             "the maximum length of test to keep in the training data."
             "This is different than the transformer context length since we avoid truncation"
         ),
-    )
-
-    parser.add_argument(
-        "--block-size",
-        type=int,
-        default=1,
-        help="What blocksize to use when training the model",
     )
 
     parser.add_argument(
@@ -239,5 +230,4 @@ if __name__ == "__main__":
         parser.error("Can't set test size when using Source-based split")
     elif args.split_type == "random" and args.test_size is None:
         parser.error("You must mention the size of the test set when using random split")
-
     main(args)
