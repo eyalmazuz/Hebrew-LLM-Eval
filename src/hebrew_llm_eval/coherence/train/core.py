@@ -46,6 +46,7 @@ def run_training(
     train_dataset = ShuffleDataset(train_set, k_max, tokenizer_name=model_name, max_length=max_length)
     val_dataset = ShuffleDataset(val_set, k_max, tokenizer_name=model_name, max_length=max_length)
 
+    print(f"Loading model {len(val_dataset)}")
     print(f"Loading model {model_name}")
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name,
@@ -70,20 +71,20 @@ def run_training(
 
     train_args = TrainingArguments(
         output_dir=output_dir,
-        per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        weight_decay=0.1,
-        max_grad_norm=1.0,
-        num_train_epochs=epochs,
-        learning_rate=learning_rate,
-        eval_strategy="epoch",
-        logging_strategy="epoch",
-        save_strategy="epoch",
-        save_total_limit=3,
-        metric_for_best_model="loss",  # Change to accuracy or any other metric
-        greater_is_better=False,  # Need to change to True when using accuracy
-        optim="adamw_torch_fused",
-        dataloader_pin_memory=True,
+        # per_device_train_batch_size=batch_size,
+        # per_device_eval_batch_size=batch_size,
+        # weight_decay=0.1,
+        # max_grad_norm=1.0,
+        # num_train_epochs=epochs,
+        # learning_rate=learning_rate,
+        # eval_strategy="epoch",
+        # logging_strategy="epoch",
+        # save_strategy="epoch",
+        # save_total_limit=3,
+        # metric_for_best_model="loss",  # Change to accuracy or any other metric
+        # greater_is_better=False,  # Need to change to True when using accuracy
+        # optim="adamw_torch_fused",
+        # dataloader_pin_memory=True,
         # torch_compile=True,
         # report_to="wandb",
         # group_by_length=True,
@@ -94,8 +95,8 @@ def run_training(
         args=train_args,
         data_collator=train_dataset.collate,
         train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        compute_metrics=compute_metrics,
+        # eval_dataset=val_dataset,
+        # compute_metrics=compute_metrics,
     )
 
     print("Training")
