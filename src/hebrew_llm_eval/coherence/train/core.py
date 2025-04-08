@@ -3,6 +3,7 @@ import os
 import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, average_precision_score, f1_score, roc_auc_score
+from tqdm.auto import trange
 from transformers import (
     AutoModelForSequenceClassification,
     EvalPrediction,
@@ -10,10 +11,12 @@ from transformers import (
     TrainingArguments,
 )
 
-from ..data.dataset import ShuffleDataset
+import wandb
+
+from ..data.dataset import ShuffleDataset, ShuffleRankingDataset
 from ..data.utils import get_train_test_split, load_data
 
-os.environ["WANDB_DISABLE"] = "true"
+# os.environ["WANDB_DISABLE"] = "true"
 
 
 def compute_metrics(eval_pred: EvalPrediction):
@@ -62,31 +65,26 @@ def run_training(
         torch_dtype=torch.bfloat16,
     )
 
-    # wandb.init(  # type: ignore
-    #     project=os.environ.get("WANDB_PROJECT", None),
-    #     entity=os.environ.get("WANDB_ENTITY", None),
-    #     group="Sentence_Ordering",
-    #     config={
-    #         "source_type": args.source_type,
-    #         "split_type": args.split_type,
-    #         "only_summaries": args.only_summaries,
-    #         "permutation_count": args.permutation_count,
-    #         "block_size": args.block_size,
-    #     },
-    # )
+    wandb.init(  # type: ignore
+        project=os.environ.get("WANDB_PROJECT", None),
+        entity=os.environ.get("WANDB_ENTITY", None),
+        group="Sentence_Ordering",
+    )
 
     train_args = TrainingArguments(
         output_dir=output_dir,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        # weight_decay=0.1,
+        weight_decay=0.1,
         max_grad_norm=1.0,
         num_train_epochs=epochs,
         learning_rate=learning_rate,
-        eval_strategy="epoch",
-        logging_strategy="epoch",
+        eval_strategy="steps",
+        eval_steps=500,
+        logging_strategy="steps",
+        logging_steps=100,
         save_strategy="epoch",
-        save_total_limit=3,
+        save_total_limit=1,
         metric_for_best_model="loss",  # Change to accuracy or any other metric
         greater_is_better=False,  # Need to change to True when using accuracy
         optim="adamw_torch_fused",
@@ -109,3 +107,28 @@ def run_training(
 
     print("Training")
     trainer.train()
+
+    print("Finished training, starting evaluation")
+
+    test_dataset = ShuffleRankingDataset(test_set, k_max, tokenizer_name=model_name, max_length=max_length)
+
+    total = 0
+    correct = 0
+    for i in trange(len(test_dataset)):
+        encodings, len_shuffled = test_dataset[i]
+        encodings = {k: v.to(device) for k, v in encodings.items()}
+
+        # Check if evaluation should be skipped based on lack of shuffles
+        if len_shuffled == 0:
+            print("  --> Skipping this item for ranking (cannot shuffle)")
+        else:
+            print("  --> Evaluating this item...")
+            with torch.no_grad():
+                outputs = model(**encodings)
+                probs = torch.softmax(outputs.logits, dim=1)
+                is_success = np.max(probs) == probs[0]
+                total += 1
+                if is_success:
+                    correct += 1
+    print(f"Ranking accuracy = {correct / total:.3f}")
+    wandb.summary["ranking_accuracy"] = correct / total  # type: ignore
