@@ -1,6 +1,8 @@
+import os
+
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, average_precision_score, f1_score, roc_auc_score
 from transformers import (
     AutoModelForSequenceClassification,
     EvalPrediction,
@@ -10,6 +12,8 @@ from transformers import (
 
 from ..data.dataset import ShuffleDataset
 from ..data.utils import get_train_test_split, load_data
+
+os.environ["WANDB_DISABLE"] = "true"
 
 
 def compute_metrics(eval_pred: EvalPrediction):
@@ -21,8 +25,9 @@ def compute_metrics(eval_pred: EvalPrediction):
     f1 = f1_score(y_true=y_true, y_pred=y_pred)
     roc_auc = roc_auc_score(y_true, probs[:, 1])
     accuracy = accuracy_score(y_true, y_pred)
+    pr_auc = average_precision_score(y_true, probs[:, 1])
 
-    metrics = {"f1": f1, "roc_auc": roc_auc, "accuracy": accuracy}
+    metrics = {"f1": f"{f1:.3f}", "roc_auc": f"{roc_auc:.3f}", "accuracy": f"{accuracy:.3f}", "pr_auc": f"{pr_auc:.3f}"}
 
     return metrics
 
@@ -53,6 +58,8 @@ def run_training(
         # max_position_embeddings=args.max_length if args.max_length != -1 else 512,
         ignore_mismatched_sizes=True,
         problem_type="single_label_classification",
+        attn_implementation="sdpa",
+        torch_dtype=torch.bfloat16,
     )
 
     # wandb.init(  # type: ignore
@@ -72,7 +79,7 @@ def run_training(
         output_dir=output_dir,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        weight_decay=0.1,
+        # weight_decay=0.1,
         max_grad_norm=1.0,
         num_train_epochs=epochs,
         learning_rate=learning_rate,
@@ -84,6 +91,8 @@ def run_training(
         greater_is_better=False,  # Need to change to True when using accuracy
         optim="adamw_torch_fused",
         dataloader_pin_memory=True,
+        bf16=True,
+        tf32=True,
         # torch_compile=True,
         # report_to="wandb",
         # group_by_length=True,

@@ -50,3 +50,6 @@ def handle_train_cli(args: argparse.Namespace) -> None:
         sys.exit(1)  # Exit with error code
 
     print("\n--- Training command finished successfully. ---")
+
+    if args.do_test:
+        pass
