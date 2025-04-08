@@ -5,6 +5,7 @@ import torch
 from sklearn.metrics import accuracy_score, average_precision_score, f1_score, roc_auc_score
 from transformers import (
     AutoModelForSequenceClassification,
+    AutoTokenizer,
     EvalPrediction,
     Trainer,
     TrainingArguments,
@@ -51,8 +52,10 @@ def run_training(
     texts = load_data(data_path)
     train_set, test_set = get_train_test_split(texts, test_size)
     train_set, val_set = get_train_test_split(train_set, val_size)
-    train_dataset = ShuffleDataset(train_set, k_max, tokenizer_name=model_name, max_length=max_length)
-    val_dataset = ShuffleDataset(val_set, k_max, tokenizer_name=model_name, max_length=max_length)
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    train_dataset = ShuffleDataset(train_set, k_max, tokenizer=tokenizer, max_length=max_length)
+    val_dataset = ShuffleDataset(val_set, k_max, tokenizer=tokenizer, max_length=max_length)
 
     print(f"Loading model {model_name}")
     model = AutoModelForSequenceClassification.from_pretrained(
@@ -114,6 +117,7 @@ def run_training(
         test_data=test_set,
         model=model,
         model_name_or_path="",
+        tokenizer=tokenizer,
         k_max=k_max,
         max_length=max_length,
         device=device,

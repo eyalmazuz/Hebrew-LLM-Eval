@@ -6,9 +6,16 @@ from .data.dataset import ShuffleRankingDataset
 
 
 def ranking_eval(
-    test_data: list[str], model, model_name_or_path: str, k_max: int, max_length: int, device: str, wandb=None
+    test_data: list[str],
+    model,
+    model_name_or_path: str,
+    tokenizer,
+    k_max: int,
+    max_length: int,
+    device: str,
+    wandb=None,
 ):
-    test_dataset = ShuffleRankingDataset(test_data, k_max, tokenizer_name=model_name_or_path, max_length=max_length)
+    test_dataset = ShuffleRankingDataset(test_data, k_max, tokenizer=tokenizer, max_length=max_length)
 
     if model is None:
         model = AutoModelForSequenceClassification.from_pretrained(
