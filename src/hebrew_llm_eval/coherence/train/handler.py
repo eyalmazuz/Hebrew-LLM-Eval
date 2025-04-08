@@ -34,6 +34,8 @@ def handle_train_cli(args: argparse.Namespace) -> None:
             epochs=args.epochs,
             learning_rate=args.learning_rate,
             device=args.device,
+            cv=args.cv,
+            do_test=args.do_test,
         )
 
         # Display results to the user via CLI
@@ -50,6 +52,3 @@ def handle_train_cli(args: argparse.Namespace) -> None:
         sys.exit(1)  # Exit with error code
 
     print("\n--- Training command finished successfully. ---")
-
-    if args.do_test:
-        pass

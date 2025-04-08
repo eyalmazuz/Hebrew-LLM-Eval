@@ -14,7 +14,7 @@ def ranking_eval(
     max_length: int,
     device: str,
     wandb=None,
-):
+) -> dict[str, float]:
     test_dataset = ShuffleRankingDataset(test_data, k_max, tokenizer=tokenizer, max_length=max_length)
 
     if model is None:
@@ -51,9 +51,14 @@ def ranking_eval(
                 pair_total += len_shuffled
                 top_total += 1
 
-    print(f"Top ranking accuracy = {top_correct / top_total:.3f}")
-    print(f"Pair ranking accuracy = {pair_correct / pair_total:.3f}")
+    top_ranking = top_correct / top_total
+    pair_ranking = pair_correct / pair_total
+
+    print(f"Top ranking accuracy = {top_ranking:.3f}")
+    print(f"Pair ranking accuracy = {pair_ranking:.3f}")
 
     if wandb is not None:
-        wandb.summary["top_ranking_accuracy"] = top_correct / top_total  # type: ignore
-        wandb.summary["pair_ranking_accuracy"] = pair_correct / pair_total  # type: ignore
+        wandb.summary["top_ranking_accuracy"] = top_ranking  # type: ignore
+        wandb.summary["pair_ranking_accuracy"] = pair_ranking  # type: ignore
+
+    return {"top_ranking_accuracy": top_ranking, "pair_ranking_accuracy": pair_ranking}
