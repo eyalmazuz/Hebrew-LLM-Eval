@@ -3,7 +3,6 @@ import os
 import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, average_precision_score, f1_score, roc_auc_score
-from tqdm.auto import trange
 from transformers import (
     AutoModelForSequenceClassification,
     EvalPrediction,
@@ -13,8 +12,9 @@ from transformers import (
 
 import wandb
 
-from ..data.dataset import ShuffleDataset, ShuffleRankingDataset
+from ..data.dataset import ShuffleDataset
 from ..data.utils import get_train_test_split, load_data
+from ..evaluation_logic import ranking_eval
 
 # os.environ["WANDB_DISABLE"] = "true"
 
@@ -110,25 +110,12 @@ def run_training(
 
     print("Finished training, starting evaluation")
 
-    test_dataset = ShuffleRankingDataset(test_set, k_max, tokenizer_name=model_name, max_length=max_length)
-
-    total = 0
-    correct = 0
-    for i in trange(len(test_dataset)):
-        encodings, len_shuffled = test_dataset[i]
-        encodings = {k: v.to(device) for k, v in encodings.items()}
-
-        # Check if evaluation should be skipped based on lack of shuffles
-        if len_shuffled == 0:
-            print("  --> Skipping this item for ranking (cannot shuffle)")
-        else:
-            print("  --> Evaluating this item...")
-            with torch.no_grad():
-                outputs = model(**encodings)
-                probs = torch.softmax(outputs.logits, dim=1)
-                is_success = np.max(probs) == probs[0]
-                total += 1
-                if is_success:
-                    correct += 1
-    print(f"Ranking accuracy = {correct / total:.3f}")
-    wandb.summary["ranking_accuracy"] = correct / total  # type: ignore
+    ranking_eval(
+        test_data=test_set,
+        model=model,
+        model_name_or_path="",
+        k_max=k_max,
+        max_length=max_length,
+        device=device,
+        wandb=wandb,
+    )
