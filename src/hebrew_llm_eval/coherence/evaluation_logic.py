@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from tqdm.auto import trange
 from transformers import AutoModelForSequenceClassification
@@ -36,8 +35,8 @@ def ranking_eval(
             print("  --> Evaluating this item...")
             with torch.no_grad():
                 outputs = model(**encodings)
-                probs = torch.softmax(outputs.logits, dim=1)[:, 1].numpy()
-                is_success = np.max(probs) == probs[0]
+                probs = torch.softmax(outputs.logits, dim=1)[:, 1]
+                is_success = torch.max(probs) == probs[0]
                 total += 1
                 if is_success:
                     correct += 1
