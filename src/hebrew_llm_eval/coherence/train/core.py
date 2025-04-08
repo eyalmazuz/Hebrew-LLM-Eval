@@ -130,7 +130,6 @@ def train_and_evaluate(
             k_max=k_max,
             max_length=max_length,
             device=device,
-            wandb=wandb_run,
         )
     return test_results
 
@@ -200,6 +199,12 @@ def run_training(
 
             print(f"Average Top Ranking Accuracy: {avg_top_ranking:.3f} (±{std_top_ranking:.3f})")
             print(f"Average Pair Ranking Accuracy: {avg_pair_ranking:.3f} (±{std_pair_ranking:.3f})")
+
+            if wandb_run is not None:
+                wandb_run.summary["top_ranking_accuracy_avg"] = avg_top_ranking  # type: ignore
+                wandb_run.summary["pair_ranking_accuracy_std"] = std_top_ranking  # type: ignore
+                wandb_run.summary["top_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
+                wandb_run.summary["pair_ranking_accuracy_std"] = std_pair_ranking  # type: ignore
         else:
             print("No results to average.")
 
@@ -220,11 +225,13 @@ def run_training(
             learning_rate=learning_rate,
             do_test=do_test,
             device=device,
-            wandb_run=wandb_run,
         )
         print("\n--- Test Results ---")
         print(f"Top Ranking Accuracy: {test_results['top_ranking_accuracy']:.3f}")
         print(f"Pair Ranking Accuracy: {test_results['pair_ranking_accuracy']:.3f}")
+
+        wandb_run.summary["top_ranking_accuracy_avg"] = f"{test_results['top_ranking_accuracy']:.3f}"  # type: ignore
+        wandb_run.summary["top_ranking_accuracy_avg"] = f"{test_results['pair_ranking_accuracy']:.3f}"  # type: ignore
 
     if wandb_run:
         wandb_run.finish()
