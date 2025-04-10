@@ -204,8 +204,8 @@ def run_training(
 
     if wandb_run is not None:
         wandb_run.summary["top_ranking_accuracy_avg"] = avg_top_ranking  # type: ignore
-        wandb_run.summary["pair_ranking_accuracy_std"] = std_top_ranking  # type: ignore
-        wandb_run.summary["top_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
+        wandb_run.summary["top_ranking_accuracy_std"] = std_top_ranking  # type: ignore
+        wandb_run.summary["pair_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
         wandb_run.summary["pair_ranking_accuracy_std"] = std_pair_ranking  # type: ignore
 
     if wandb_run:
