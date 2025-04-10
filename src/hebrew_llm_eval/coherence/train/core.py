@@ -153,7 +153,7 @@ def run_training(
 ) -> None:
     texts = load_data(data_path)
 
-    wandb_run = wandb.init(  # type: ignore
+    run = wandb.init(  # type: ignore
         project=os.environ.get("WANDB_PROJECT", None),
         entity=os.environ.get("WANDB_ENTITY", None),
         group="Sentence_Ordering",
@@ -164,6 +164,12 @@ def run_training(
     print(f"Starting {cv}-fold cross-validation")
     shuffle_split = ShuffleSplit(n_splits=cv, test_size=test_size, random_state=42)
     for fold, (train_index, test_index) in enumerate(shuffle_split.split(texts)):
+        wandb_run = wandb.init(  # type: ignore
+            project=os.environ.get("WANDB_PROJECT", None),
+            entity=os.environ.get("WANDB_ENTITY", None),
+            group="Sentence_Ordering",
+            name=f"Fold_{fold + 1}",
+        )
         print(f"Starting fold {fold + 1}/{cv}")
         train_set = [texts[i] for i in train_index]
         test_set = [texts[i] for i in test_index]
@@ -202,11 +208,11 @@ def run_training(
     print(f"Average Top Ranking Accuracy: {avg_top_ranking:.3f} (±{std_top_ranking:.3f})")
     print(f"Average Pair Ranking Accuracy: {avg_pair_ranking:.3f} (±{std_pair_ranking:.3f})")
 
-    if wandb_run is not None:
-        wandb_run.summary["top_ranking_accuracy_avg"] = avg_top_ranking  # type: ignore
-        wandb_run.summary["top_ranking_accuracy_std"] = std_top_ranking  # type: ignore
-        wandb_run.summary["pair_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
-        wandb_run.summary["pair_ranking_accuracy_std"] = std_pair_ranking  # type: ignore
+    if run is not None:
+        run.summary["top_ranking_accuracy_avg"] = avg_top_ranking  # type: ignore
+        run.summary["top_ranking_accuracy_std"] = std_top_ranking  # type: ignore
+        run.summary["pair_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
+        run.summary["pair_ranking_accuracy_std"] = std_pair_ranking  # type: ignore
 
-    if wandb_run:
-        wandb_run.finish()
+    if run:
+        run.finish()
