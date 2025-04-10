@@ -31,7 +31,7 @@ def compute_metrics(eval_pred: EvalPrediction):
     accuracy = accuracy_score(y_true, y_pred)
     pr_auc = average_precision_score(y_true, probs[:, 1])
 
-    metrics = {"f1": f"{f1:.3f}", "roc_auc": f"{roc_auc:.3f}", "accuracy": f"{accuracy:.3f}", "pr_auc": f"{pr_auc:.3f}"}
+    metrics = {"f1": f1, "roc_auc": roc_auc, "accuracy": accuracy, "pr_auc": pr_auc}
 
     return metrics
 
@@ -100,7 +100,7 @@ def train_and_evaluate(
         save_strategy="steps",
         save_steps=500,
         save_total_limit=1,
-        metric_for_best_model="eval_roc_auc",  # Change to accuracy or any other metric
+        metric_for_best_model="roc_auc",  # Change to accuracy or any other metric
         greater_is_better=True,  # Need to change to True when using accuracy
         optim="adamw_torch_fused",
         dataloader_pin_memory=True,
