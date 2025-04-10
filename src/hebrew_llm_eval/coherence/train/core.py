@@ -190,6 +190,8 @@ def run_training(
         )
         all_test_results.append(test_results)
 
+        print(f"Fold {fold + 1} results: {test_results}")
+
     # Calculate and print average and std for CV
     print("\n--- Cross-Validation Results ---")
     avg_top_ranking = statistics.mean([res["top_ranking_accuracy"] for res in all_test_results])
