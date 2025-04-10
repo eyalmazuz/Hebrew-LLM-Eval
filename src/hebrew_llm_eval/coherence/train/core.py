@@ -78,6 +78,10 @@ def train_and_evaluate(
     # Determine if a W&B run is active to configure reporting
     report_to = "wandb" if wandb.run else "none"  # type: ignore
 
+    # --- Get run name directly from active W&B run ---
+    current_wandb_run_name = wandb.run.name if wandb.run else None  # type: ignore
+    print(f"Current W&B Run Name: {current_wandb_run_name}")
+
     train_args = TrainingArguments(
         output_dir=output_dir,
         per_device_train_batch_size=batch_size,
@@ -100,6 +104,7 @@ def train_and_evaluate(
         bf16=True,  # Restored original setting
         tf32=True,  # Restored original setting
         report_to=report_to,  # Report to W&B if a run is active
+        run_name=current_wandb_run_name,
         load_best_model_at_end=True,
     )
 
