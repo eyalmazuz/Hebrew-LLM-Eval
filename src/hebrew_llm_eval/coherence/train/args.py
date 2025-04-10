@@ -27,7 +27,7 @@ def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: 
     train_parser.add_argument("--output-dir", type=str, default="./results", help="Directory to save training results")
     train_parser.add_argument("--device", type=str, default="cuda", help="Device for training (e.g., 'cuda', 'cpu')")
     train_parser.add_argument("--max-length", type=int, default=512, help="the maximum length data")
-    train_parser.add_argument("--no-test", action="store_false", help="If not to run test after training")
+    train_parser.add_argument("--no-test", action="store_true", help="If not to run test after training")
     train_parser.add_argument("--cv", type=int, default=1, help="Number of cross-validation folds")
 
     # Set the default function for the 'train' command

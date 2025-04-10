@@ -147,7 +147,7 @@ def run_training(
     batch_size: int = 32,
     epochs: int = 3,
     cv: int = 1,
-    no_test: bool = True,
+    no_test: bool = False,
     learning_rate: float = 5e-5,
     device: str = "cuda",
 ) -> None:
