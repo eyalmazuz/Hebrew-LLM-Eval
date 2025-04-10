@@ -97,15 +97,17 @@ def train_and_evaluate(
         eval_steps=500,
         logging_strategy="steps",
         logging_steps=100,
-        save_strategy="epoch",
+        save_strategy="steps",
+        save_steps=500,
         save_total_limit=1,
-        metric_for_best_model="loss",  # Change to accuracy or any other metric
-        greater_is_better=False,  # Need to change to True when using accuracy
+        metric_for_best_model="eval_roc_auc",  # Change to accuracy or any other metric
+        greater_is_better=True,  # Need to change to True when using accuracy
         optim="adamw_torch_fused",
         dataloader_pin_memory=True,
         bf16=True,
         tf32=True,
         report_to="wandb" if wandb_run else None,
+        load_best_model_at_end=True,
     )
 
     trainer = Trainer(
