@@ -168,7 +168,6 @@ def run_training(
             project=os.environ.get("WANDB_PROJECT", None),
             entity=os.environ.get("WANDB_ENTITY", None),
             group="Sentence_Ordering",
-            name=f"Fold_{fold + 1}",
         )
         print(f"Starting fold {fold + 1}/{cv}")
         train_set = [texts[i] for i in train_index]
@@ -176,7 +175,7 @@ def run_training(
         train_set, val_set = get_train_test_split(train_set, val_size / (1 - test_size))
 
         # Update output directory for each fold
-        fold_output_dir = os.path.join(output_dir, f"fold_{fold + 1}")
+        fold_output_dir = os.path.join(output_dir, f"{wandb_run.name}", f"fold_{fold + 1}")
         os.makedirs(fold_output_dir, exist_ok=True)
 
         test_results = train_and_evaluate(
