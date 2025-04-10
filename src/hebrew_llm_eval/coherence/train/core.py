@@ -4,7 +4,7 @@ import statistics
 import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, average_precision_score, f1_score, roc_auc_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import ShuffleSplit
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -159,65 +159,24 @@ def run_training(
 
     all_test_results: list[dict[str, float]] = []
 
-    if cv > 1:
-        print(f"Starting {cv}-fold cross-validation")
-        kf = KFold(n_splits=cv, shuffle=True, random_state=42)
-        for fold, (train_index, test_index) in enumerate(kf.split(texts)):
-            print(f"Starting fold {fold + 1}/{cv}")
-            train_set = [texts[i] for i in train_index]
-            test_set = [texts[i] for i in test_index]
-            train_set, val_set = get_train_test_split(train_set, val_size / (1 - test_size))
+    print(f"Starting {cv}-fold cross-validation")
+    shuffle_split = ShuffleSplit(n_splits=cv, test_size=test_size, random_state=42)
+    for fold, (train_index, test_index) in enumerate(shuffle_split.split(texts)):
+        print(f"Starting fold {fold + 1}/{cv}")
+        train_set = [texts[i] for i in train_index]
+        test_set = [texts[i] for i in test_index]
+        train_set, val_set = get_train_test_split(train_set, val_size / (1 - test_size))
 
-            # Update output directory for each fold
-            fold_output_dir = os.path.join(output_dir, f"fold_{fold + 1}")
-            os.makedirs(fold_output_dir, exist_ok=True)
+        # Update output directory for each fold
+        fold_output_dir = os.path.join(output_dir, f"fold_{fold + 1}")
+        os.makedirs(fold_output_dir, exist_ok=True)
 
-            test_results = train_and_evaluate(
-                train_set=train_set,
-                val_set=val_set,
-                test_set=test_set,
-                model_name=model_name,
-                output_dir=fold_output_dir,
-                max_length=max_length,
-                k_max=k_max,
-                batch_size=batch_size,
-                epochs=epochs,
-                learning_rate=learning_rate,
-                do_test=do_test,
-                device=device,
-                wandb_run=wandb_run,
-            )
-            all_test_results.append(test_results)
-
-        # Calculate and print average and std for CV
-        if all_test_results:
-            print("\n--- Cross-Validation Results ---")
-            avg_top_ranking = statistics.mean([res["top_ranking_accuracy"] for res in all_test_results])
-            std_top_ranking = statistics.stdev([res["top_ranking_accuracy"] for res in all_test_results])
-            avg_pair_ranking = statistics.mean([res["pair_ranking_accuracy"] for res in all_test_results])
-            std_pair_ranking = statistics.stdev([res["pair_ranking_accuracy"] for res in all_test_results])
-
-            print(f"Average Top Ranking Accuracy: {avg_top_ranking:.3f} (±{std_top_ranking:.3f})")
-            print(f"Average Pair Ranking Accuracy: {avg_pair_ranking:.3f} (±{std_pair_ranking:.3f})")
-
-            if wandb_run is not None:
-                wandb_run.summary["top_ranking_accuracy_avg"] = avg_top_ranking  # type: ignore
-                wandb_run.summary["pair_ranking_accuracy_std"] = std_top_ranking  # type: ignore
-                wandb_run.summary["top_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
-                wandb_run.summary["pair_ranking_accuracy_std"] = std_pair_ranking  # type: ignore
-        else:
-            print("No results to average.")
-
-    else:
-        print("Starting single train/val/test split")
-        train_set, test_set = get_train_test_split(texts, test_size)
-        train_set, val_set = get_train_test_split(train_set, val_size)
         test_results = train_and_evaluate(
             train_set=train_set,
             val_set=val_set,
             test_set=test_set,
             model_name=model_name,
-            output_dir=output_dir,
+            output_dir=fold_output_dir,
             max_length=max_length,
             k_max=k_max,
             batch_size=batch_size,
@@ -225,13 +184,25 @@ def run_training(
             learning_rate=learning_rate,
             do_test=do_test,
             device=device,
+            wandb_run=wandb_run,
         )
-        print("\n--- Test Results ---")
-        print(f"Top Ranking Accuracy: {test_results['top_ranking_accuracy']:.3f}")
-        print(f"Pair Ranking Accuracy: {test_results['pair_ranking_accuracy']:.3f}")
+        all_test_results.append(test_results)
 
-        wandb_run.summary["top_ranking_accuracy_avg"] = f"{test_results['top_ranking_accuracy']:.3f}"  # type: ignore
-        wandb_run.summary["top_ranking_accuracy_avg"] = f"{test_results['pair_ranking_accuracy']:.3f}"  # type: ignore
+    # Calculate and print average and std for CV
+    print("\n--- Cross-Validation Results ---")
+    avg_top_ranking = statistics.mean([res["top_ranking_accuracy"] for res in all_test_results])
+    std_top_ranking = statistics.stdev([res["top_ranking_accuracy"] for res in all_test_results])
+    avg_pair_ranking = statistics.mean([res["pair_ranking_accuracy"] for res in all_test_results])
+    std_pair_ranking = statistics.stdev([res["pair_ranking_accuracy"] for res in all_test_results])
+
+    print(f"Average Top Ranking Accuracy: {avg_top_ranking:.3f} (±{std_top_ranking:.3f})")
+    print(f"Average Pair Ranking Accuracy: {avg_pair_ranking:.3f} (±{std_pair_ranking:.3f})")
+
+    if wandb_run is not None:
+        wandb_run.summary["top_ranking_accuracy_avg"] = avg_top_ranking  # type: ignore
+        wandb_run.summary["pair_ranking_accuracy_std"] = std_top_ranking  # type: ignore
+        wandb_run.summary["top_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
+        wandb_run.summary["pair_ranking_accuracy_std"] = std_pair_ranking  # type: ignore
 
     if wandb_run:
         wandb_run.finish()
