@@ -35,7 +35,7 @@ def handle_train_cli(args: argparse.Namespace) -> None:
             learning_rate=args.learning_rate,
             device=args.device,
             cv=args.cv,
-            do_test=args.do_test,
+            no_test=args.no_test,
         )
 
         # Display results to the user via CLI

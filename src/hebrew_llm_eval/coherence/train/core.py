@@ -47,7 +47,7 @@ def train_and_evaluate(
     batch_size: int,
     epochs: int,
     learning_rate: float,
-    do_test: bool,
+    no_test: bool,
     device: str,
     wandb_run: wandb.sdk.wandb_run.Run | None = None,  # type: ignore
 ) -> dict[str, float]:
@@ -122,7 +122,7 @@ def train_and_evaluate(
     print("Training")
     trainer.train()
     test_results = {}
-    if do_test:
+    if not no_test:
         print("Finished training, starting evaluation")
         test_results = ranking_eval(
             test_data=test_set,
@@ -147,7 +147,7 @@ def run_training(
     batch_size: int = 32,
     epochs: int = 3,
     cv: int = 1,
-    do_test: bool = True,
+    no_test: bool = True,
     learning_rate: float = 5e-5,
     device: str = "cuda",
 ) -> None:
@@ -184,7 +184,7 @@ def run_training(
             batch_size=batch_size,
             epochs=epochs,
             learning_rate=learning_rate,
-            do_test=do_test,
+            no_test=no_test,
             device=device,
             wandb_run=wandb_run,
         )
