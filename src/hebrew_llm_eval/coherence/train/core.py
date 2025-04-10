@@ -203,15 +203,20 @@ def run_training(
     std_top_ranking = statistics.stdev([res["top_ranking_accuracy"] for res in all_test_results])
     avg_pair_ranking = statistics.mean([res["pair_ranking_accuracy"] for res in all_test_results])
     std_pair_ranking = statistics.stdev([res["pair_ranking_accuracy"] for res in all_test_results])
+    avg_mrr = statistics.mean([res["mean_mrr"] for res in all_test_results])
+    std_mrr = statistics.stdev([res["mean_mrr"] for res in all_test_results])
 
     print(f"Average Top Ranking Accuracy: {avg_top_ranking:.3f} (±{std_top_ranking:.3f})")
     print(f"Average Pair Ranking Accuracy: {avg_pair_ranking:.3f} (±{std_pair_ranking:.3f})")
+    print(f"Average MRR: {avg_mrr:.3f} (±{std_mrr:.3f})")
 
     if run is not None:
         run.summary["top_ranking_accuracy_avg"] = avg_top_ranking  # type: ignore
         run.summary["top_ranking_accuracy_std"] = std_top_ranking  # type: ignore
         run.summary["pair_ranking_accuracy_avg"] = avg_pair_ranking  # type: ignore
         run.summary["pair_ranking_accuracy_std"] = std_pair_ranking  # type: ignore
+        run.summary["mrr_avg"] = avg_mrr  # type: ignore
+        run.summary["mrr_std"] = std_mrr  # type: ignore
 
     if run:
         run.finish()

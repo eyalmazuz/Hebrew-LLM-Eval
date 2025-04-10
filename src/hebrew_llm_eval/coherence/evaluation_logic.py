@@ -32,6 +32,7 @@ def ranking_eval(
     top_total = 0
     pair_correct = 0
     pair_total = 0
+    total_mrr = 0.0
     for i in trange(len(test_dataset)):
         encodings, len_shuffled = test_dataset[i]
         encodings = {k: v.to(device) for k, v in encodings.items()}
@@ -49,11 +50,22 @@ def ranking_eval(
                 pair_correct += int(torch.sum(probs[0] > probs[1:]))
                 pair_total += len_shuffled
                 top_total += 1
+                all_scores = probs
+
+                # Sort scores in descending order to find the rank
+                sorted_scores, sorted_indices = torch.sort(all_scores, descending=True)
+
+                # Find the rank (1-based index) of the original document
+                # Find where the index 0 (original document's index) appears in the sorted indices tensor
+                rank = (sorted_indices == 0).nonzero(as_tuple=True)[0].item() + 1
+                total_mrr += 1.0 / rank
 
     top_ranking = top_correct / top_total
     pair_ranking = pair_correct / pair_total
+    mean_mrr = total_mrr / len(test_dataset)
 
     print(f"Top ranking accuracy = {top_ranking:.3f}")
     print(f"Pair ranking accuracy = {pair_ranking:.3f}")
+    print(f"Pair ranking accuracy = {mean_mrr:.4f}")
 
-    return {"top_ranking_accuracy": top_ranking, "pair_ranking_accuracy": pair_ranking}
+    return {"top_ranking_accuracy": top_ranking, "pair_ranking_accuracy": pair_ranking, "mean_mrr": mean_mrr}
