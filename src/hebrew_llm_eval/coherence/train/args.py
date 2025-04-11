@@ -1,8 +1,6 @@
 import argparse
 
-# Import the specific handler for the 'train' command under 'coherence'
-# Adjust path/name if you changed 'handler.py' or the function name
-from .handler import handle_train_cli
+from ...common.enums import SplitType  # Relative import from train/args.py
 
 
 def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: argparse.ArgumentParser) -> None:
@@ -20,6 +18,26 @@ def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: 
     )
     train_parser.add_argument("--test-size", type=float, default=0.2, help="Size of the test set")
     train_parser.add_argument("--val-size", type=float, default=0.2, help="Size of the validation set")
+
+    train_parser.add_argument(
+        "--split-type",
+        type=SplitType,  # Use the Enum class directly as the type
+        default=SplitType.RANDOM,  # Default to the Enum member
+        # Dynamically generate choices from Enum values for help message and validation
+        choices=list(SplitType),
+        help="Method for splitting data. "
+        f"If not '{SplitType.RANDOM}', --split-key is required. "
+        f"Default: '{SplitType.RANDOM}'.",
+        # Choices are automatically listed by argparse based on 'choices' list
+    )
+    train_parser.add_argument(
+        "--split-key",
+        type=str,
+        default=None,
+        help="The key (e.g., column name) used for non-random splitting. "
+        f"Required if --split-type is not '{SplitType.RANDOM}'.",
+    )
+
     train_parser.add_argument("--k-max", type=int, default=20, help="Maximum number of shuffles per text")
     train_parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training")
     train_parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
@@ -31,4 +49,6 @@ def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: 
     train_parser.add_argument("--cv", type=int, default=1, help="Number of cross-validation folds")
 
     # Set the default function for the 'train' command
-    train_parser.set_defaults(func=handle_train_cli)
+    # This function (handle_train_cli) is responsible for validating the relationship
+    # between --split-type and --split-key after parsing.
+    # train_parser.set_defaults(func=handle_train_cli) # Assumes handle_train_cli exists

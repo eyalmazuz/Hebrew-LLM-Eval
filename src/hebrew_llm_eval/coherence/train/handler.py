@@ -1,7 +1,8 @@
-import argparse
-import logging  # Can configure logging level based on verbosity
+import argparse  # Make sure argparse is imported
+import logging
 import sys
 
+from ...common.enums import SplitType
 from .core import run_training  # Import the core logic
 
 
@@ -20,6 +21,13 @@ def handle_train_cli(args: argparse.Namespace) -> None:
     if args.verbose:
         print(f"Raw CLI arguments: {vars(args)}")  # Print args if verbose
 
+    if args.split_type == SplitType.RANDOM:  # Compare with Enum member
+        if args.split_key is not None:
+            raise argparse.ArgumentTypeError(f"Cannot use --split-key when --split-type is '{SplitType.RANDOM}'.")
+    else:  # split_type is not SplitType.RANDOM
+        if args.split_key is None:
+            # Use .value for user-friendly error message
+            raise argparse.ArgumentTypeError(f"--split-key is required when --split-type is '{args.split_type}'.")
     try:
         # Call the core training function, passing extracted args
         run_training(
@@ -28,6 +36,8 @@ def handle_train_cli(args: argparse.Namespace) -> None:
             model_name=args.model_name,
             test_size=args.test_size,
             val_size=args.val_size,
+            split_type=args.split_type,
+            split_key=args.split_key,
             max_length=args.max_length,
             k_max=args.k_max,
             batch_size=args.batch_size,
@@ -46,6 +56,7 @@ def handle_train_cli(args: argparse.Namespace) -> None:
         print(f"Details: {e}", file=sys.stderr)
         sys.exit(1)  # Exit with error code
     except Exception as e:
+        # Note: ArgumentTypeError raised above will be caught here if not handled earlier
         print("\nAn unexpected error occurred during training:", file=sys.stderr)
         logging.error("Core training failed:", exc_info=True)  # Log the full traceback for debugging
         print(f"Error details: {e}", file=sys.stderr)

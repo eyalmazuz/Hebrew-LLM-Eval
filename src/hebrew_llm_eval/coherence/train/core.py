@@ -2,14 +2,11 @@ import os
 import statistics
 import uuid  # For generating unique group IDs
 
-import numpy as np
 import torch
-from sklearn.metrics import accuracy_score, average_precision_score, f1_score, roc_auc_score
 from sklearn.model_selection import ShuffleSplit
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
-    EvalPrediction,
     Trainer,
     TrainingArguments,
 )
@@ -20,23 +17,7 @@ import wandb
 from ..data.dataset import ShuffleDataset
 from ..data.utils import get_train_test_split, load_data
 from ..evaluation_logic import ranking_eval
-
-
-# --- compute_metrics function remains the same ---
-def compute_metrics(eval_pred: EvalPrediction):
-    preds = eval_pred.predictions[0] if isinstance(eval_pred.predictions, tuple) else eval_pred.predictions
-    probs = torch.nn.functional.softmax(torch.from_numpy(preds), dim=1)
-    y_pred = np.argmax(probs, axis=1)
-    y_true = eval_pred.label_ids
-
-    f1 = f1_score(y_true=y_true, y_pred=y_pred)
-    roc_auc = roc_auc_score(y_true, probs[:, 1])
-    accuracy = accuracy_score(y_true, y_pred)
-    pr_auc = average_precision_score(y_true, probs[:, 1])
-
-    metrics = {"f1": f1, "roc_auc": roc_auc, "accuracy": accuracy, "pr_auc": pr_auc}
-
-    return metrics
+from .metrics import compute_metrics
 
 
 # --- train_and_evaluate function updated ---
@@ -150,6 +131,8 @@ def run_training(
     model_name: str = "dicta-il/alephbertgimmel-base",  # Original default
     test_size: float = 0.2,
     val_size: float = 0.2,
+    split_type: str = "random",  # Added argument
+    split_key: str | None = None,  # Added argument
     max_length: int = 512,
     k_max: int = 20,
     batch_size: int = 32,
@@ -169,7 +152,7 @@ def run_training(
     all_test_results: list[dict[str, float]] = []
 
     print(f"Starting {cv}-fold cross-validation")
-    shuffle_split = ShuffleSplit(n_splits=cv, test_size=test_size, random_state=42)
+    shuffle_split = ShuffleSplit(n_splits=cv, test_size=test_size)
     for fold, (train_index, test_index) in enumerate(shuffle_split.split(texts)):
         # --- Initialize W&B Run *Inside* the Loop for Each Fold ---
         run_name = f"Fold_{fold + 1}"
