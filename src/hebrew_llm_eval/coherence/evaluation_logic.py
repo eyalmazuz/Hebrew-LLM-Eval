@@ -69,6 +69,6 @@ def ranking_eval(
 
     print(f"Top ranking accuracy = {top_ranking:.3f}")
     print(f"Pair ranking accuracy = {pair_ranking:.3f}")
-    print(f"Pair ranking accuracy = {mean_mrr:.4f}")
+    print(f"MRR accuracy = {mean_mrr:.4f}")
 
     return {"top_ranking_accuracy": top_ranking, "pair_ranking_accuracy": pair_ranking, "mean_mrr": mean_mrr}
