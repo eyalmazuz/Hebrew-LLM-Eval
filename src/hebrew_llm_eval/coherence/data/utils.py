@@ -43,7 +43,7 @@ def load_data(path: str) -> list[DataRecord]:
                 DataRecord(
                     text_raw=summary["text_raw"],
                     summary=summary["summary"],
-                    source=IDX2SOURCE[summary["source"]],
+                    source=summary["metadata"].get("source", None),
                 )
             )
     return records
