@@ -160,7 +160,7 @@ def run_training(
     print(f"Starting {cv}-fold cross-validation witih {data_splitter}")
     for fold, (train_set, val_set, test_set) in enumerate(data_splitter.get_splits()):
         # --- Initialize W&B Run *Inside* the Loop for Each Fold ---
-        run_name = f"Fold_{fold + 1}"
+        run_name = f"{cv}_Fold_{fold + 1}"
         fold_run = wandb.init(  # type: ignore
             project=os.environ.get("WANDB_PROJECT", "default_project"),  # Provide a default project name
             entity=os.environ.get("WANDB_ENTITY", None),  # Your W&B entity
