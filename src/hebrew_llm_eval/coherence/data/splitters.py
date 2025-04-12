@@ -68,7 +68,7 @@ class GroupSplitter(BaseSplitter):
 
             test_data = [record for record in self.data if record[self.split_key] == test_group]
             val_data = [record for record in self.data if record[self.split_key] == val_group]
-            train_data = [record for record in self.data if record[self.split_key] == train_groups]
+            train_data = [record for record in self.data if record[self.split_key] in train_groups]
 
             print(f"Test size: {len(test_data)} | Val size: {len(val_data)} | Train size: {len(train_data)}")
 
