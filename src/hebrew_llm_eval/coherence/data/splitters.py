@@ -54,7 +54,7 @@ class GroupSplitter(BaseSplitter):
     def _get_groups(self) -> list[str]:
         groups: list[str] = []
         for record in self.data:
-            group_key = getattr(record, self.split_key)
+            group_key = record[self.split_key]
             if group_key not in groups:
                 groups.append(group_key)
         return groups
