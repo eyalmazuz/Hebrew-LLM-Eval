@@ -8,3 +8,6 @@ class DataRecord:
     text_raw: str
     summary: str
     source: str | None = None
+
+    def __getitem__(self, attr: str) -> str:
+        return getattr(self, attr)

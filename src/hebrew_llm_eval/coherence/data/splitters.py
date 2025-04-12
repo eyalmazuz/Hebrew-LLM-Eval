@@ -66,9 +66,9 @@ class GroupSplitter(BaseSplitter):
             train_groups = [g for g in group_keys if g not in [test_group, val_group]]
             print(f"Test group: {test_group} | Val group: {val_group} | Train groups: {train_groups}")
 
-            test_data = [record for record in self.data if getattr(record, self.split_key) == test_group]
-            val_data = [record for record in self.data if getattr(record, self.split_key) == val_group]
-            train_data = [record for record in self.data if getattr(record, self.split_key) == train_groups]
+            test_data = [record for record in self.data if record[self.split_key] == test_group]
+            val_data = [record for record in self.data if record[self.split_key] == val_group]
+            train_data = [record for record in self.data if record[self.split_key] == train_groups]
 
             print(f"Test size: {len(test_data)} | Val size: {len(val_data)} | Train size: {len(train_data)}")
 
