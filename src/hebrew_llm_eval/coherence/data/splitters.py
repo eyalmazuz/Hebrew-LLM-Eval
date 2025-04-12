@@ -18,7 +18,12 @@ class BaseSplitter(ABC):
 
 class RandomSplitter(BaseSplitter):
     def __init__(
-        self, data: MutableSequence[DataRecord], test_size: float = 0.2, val_size: float = 0.2, num_splits: int = 1
+        self,
+        data: MutableSequence[DataRecord],
+        test_size: float = 0.2,
+        val_size: float = 0.2,
+        num_splits: int = 1,
+        **kwargs,
     ) -> None:
         super().__init__(data)
         self.test_size = test_size
@@ -35,16 +40,16 @@ class RandomSplitter(BaseSplitter):
 
 
 class GroupSplitter(BaseSplitter):
-    def __init__(self, data: list[DataRecord], key: str | None) -> None:
+    def __init__(self, data: list[DataRecord], split_key: str | None, **kwargs) -> None:
         super().__init__(data)
-        assert key is not None, "key must be provided for group split"
-        self.key = key
+        assert split_key is not None, "key must be provided for group split"
+        self.split_key = split_key
         self.groups = self._get_groups()
 
     def _get_groups(self) -> list[str]:
         groups: list[str] = []
         for record in self.data:
-            group_key = getattr(record, self.key)
+            group_key = getattr(record, self.split_key)
             if group_key not in groups:
                 groups.append(group_key)
         return groups
@@ -55,18 +60,18 @@ class GroupSplitter(BaseSplitter):
             val_group = random.choice([g for g in group_keys if g != test_group])
             train_groups = [g for g in group_keys if g not in [test_group, val_group]]
 
-            test_data = [record for record in self.data if getattr(record, self.key) == test_group]
-            val_data = [record for record in self.data if getattr(record, self.key) == val_group]
-            train_data = [record for record in self.data if getattr(record, self.key) == train_groups]
+            test_data = [record for record in self.data if getattr(record, self.split_key) == test_group]
+            val_data = [record for record in self.data if getattr(record, self.split_key) == val_group]
+            train_data = [record for record in self.data if getattr(record, self.split_key) == train_groups]
 
             yield train_data, val_data, test_data
 
 
-def get_split_by_type(data: list[DataRecord], split_type: str, split_key: str | None = None) -> BaseSplitter:
+def get_split_by_type(data: list[DataRecord], split_type: SplitType, **kwargs) -> BaseSplitter:
     match split_type:
         case SplitType.RANDOM:
-            return RandomSplitter(data)
+            return RandomSplitter(data, **kwargs)
         case SplitType.KEY:
-            return GroupSplitter(data, split_key)
+            return GroupSplitter(data, **kwargs)
         case _:
             raise ValueError(f"Unknown split type: {split_type}")

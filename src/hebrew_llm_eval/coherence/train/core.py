@@ -14,6 +14,7 @@ from transformers import (
 import wandb
 
 # Assume these imports are correct and point to your project's modules
+from ...common.enums import SplitType
 from ..data.dataset import ShuffleDataset
 from ..data.splitters import get_split_by_type
 from ..data.types import DataRecord
@@ -133,7 +134,7 @@ def run_training(
     model_name: str = "dicta-il/alephbertgimmel-base",  # Original default
     test_size: float = 0.2,
     val_size: float = 0.2,
-    split_type: str = "random",  # Added argument
+    split_type: SplitType = SplitType.RANDOM,  # Added argument
     split_key: str | None = None,  # Added argument
     max_length: int = 512,
     k_max: int = 20,
@@ -154,7 +155,9 @@ def run_training(
     all_test_results: list[dict[str, float]] = []
 
     print(f"Starting {cv}-fold cross-validation")
-    data_splitter = get_split_by_type(texts, split_type, split_key)
+    data_splitter = get_split_by_type(
+        texts, split_type, split_key=split_key, num_splits=cv, test_size=test_size, val_size=val_size
+    )
     for fold, (train_set, val_set, test_set) in enumerate(data_splitter.get_splits()):
         # --- Initialize W&B Run *Inside* the Loop for Each Fold ---
         run_name = f"Fold_{fold + 1}"
