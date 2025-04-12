@@ -1,9 +1,9 @@
 import os
 import statistics
 import uuid  # For generating unique group IDs
+from collections.abc import Iterable
 
 import torch
-from sklearn.model_selection import ShuffleSplit
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -15,7 +15,9 @@ import wandb
 
 # Assume these imports are correct and point to your project's modules
 from ..data.dataset import ShuffleDataset
-from ..data.utils import get_train_test_split, load_data
+from ..data.splitters import get_split_by_type
+from ..data.types import DataRecord
+from ..data.utils import load_data
 from ..evaluation_logic import ranking_eval
 from .metrics import compute_metrics
 
@@ -23,9 +25,9 @@ from .metrics import compute_metrics
 # --- train_and_evaluate function updated ---
 # Removed wandb_run parameter; Trainer will use the active run.
 def train_and_evaluate(
-    train_set: list[str],
-    val_set: list[str],
-    test_set: list[str],
+    train_set: Iterable[DataRecord],
+    val_set: Iterable[DataRecord],
+    test_set: Iterable[DataRecord],
     model_name: str,
     output_dir: str,
     max_length: int,
@@ -152,8 +154,8 @@ def run_training(
     all_test_results: list[dict[str, float]] = []
 
     print(f"Starting {cv}-fold cross-validation")
-    shuffle_split = ShuffleSplit(n_splits=cv, test_size=test_size)
-    for fold, (train_index, test_index) in enumerate(shuffle_split.split(texts)):
+    data_splitter = get_split_by_type(texts, split_type, split_key)
+    for fold, (train_set, val_set, test_set) in enumerate(data_splitter.get_splits()):
         # --- Initialize W&B Run *Inside* the Loop for Each Fold ---
         run_name = f"Fold_{fold + 1}"
         fold_run = wandb.init(  # type: ignore
@@ -180,13 +182,6 @@ def run_training(
         # -----------------------------------------------------------
 
         print(f"--- Starting Fold {fold + 1}/{cv} (W&B Run ID: {fold_run.id}) ---")  # type: ignore
-        train_set = [texts[i] for i in train_index]
-        test_set = [texts[i] for i in test_index]
-
-        # Using your actual get_train_test_split function
-        # Calculate the proportion of the original *training* data to use for validation
-        effective_val_size = val_size / (1 - test_size) if (1 - test_size) > 0 else 0
-        train_set, val_set = get_train_test_split(train_set, effective_val_size)
 
         # Update output directory for each fold
         # Using fold number is generally clear for CV outputs

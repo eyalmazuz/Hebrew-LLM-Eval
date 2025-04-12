@@ -1,0 +1,72 @@
+import random
+from abc import ABC, abstractmethod
+from collections.abc import Iterable, MutableSequence
+
+from ...common.enums import SplitType
+from ..data.utils import get_data_split
+from .types import DataRecord
+
+
+class BaseSplitter(ABC):
+    def __init__(self, data: MutableSequence[DataRecord]) -> None:
+        self.data = data
+
+    @abstractmethod
+    def get_splits(self) -> Iterable[tuple[Iterable[DataRecord], ...]]:
+        raise NotImplementedError
+
+
+class RandomSplitter(BaseSplitter):
+    def __init__(
+        self, data: MutableSequence[DataRecord], test_size: float = 0.2, val_size: float = 0.2, num_splits: int = 1
+    ) -> None:
+        super().__init__(data)
+        self.test_size = test_size
+        effective_val_size = val_size / (1 - test_size) if (1 - test_size) > 0 else 0
+        self.val_size = effective_val_size
+        self.num_splits = num_splits
+
+    def get_splits(self) -> Iterable[tuple[Iterable[DataRecord], ...]]:
+        for _ in range(self.num_splits):
+            train_set, test_set = get_data_split(self.data, self.test_size)
+            train_set, val_set = get_data_split(train_set, self.val_size)
+
+            yield train_set, val_set, test_set
+
+
+class GroupSplitter(BaseSplitter):
+    def __init__(self, data: list[DataRecord], key: str | None) -> None:
+        super().__init__(data)
+        assert key is not None, "key must be provided for group split"
+        self.key = key
+        self.groups = self._get_groups()
+
+    def _get_groups(self) -> list[str]:
+        groups: list[str] = []
+        for record in self.data:
+            group_key = getattr(record, self.key)
+            if group_key not in groups:
+                groups.append(group_key)
+        return groups
+
+    def get_splits(self) -> Iterable[tuple[Iterable[DataRecord], ...]]:
+        group_keys = list(self.groups)
+        for test_group in group_keys:
+            val_group = random.choice([g for g in group_keys if g != test_group])
+            train_groups = [g for g in group_keys if g not in [test_group, val_group]]
+
+            test_data = [record for record in self.data if getattr(record, self.key) == test_group]
+            val_data = [record for record in self.data if getattr(record, self.key) == val_group]
+            train_data = [record for record in self.data if getattr(record, self.key) == train_groups]
+
+            yield train_data, val_data, test_data
+
+
+def get_split_by_type(data: list[DataRecord], split_type: str, split_key: str | None = None) -> BaseSplitter:
+    match split_type:
+        case SplitType.RANDOM:
+            return RandomSplitter(data)
+        case SplitType.KEY:
+            return GroupSplitter(data, split_key)
+        case _:
+            raise ValueError(f"Unknown split type: {split_type}")

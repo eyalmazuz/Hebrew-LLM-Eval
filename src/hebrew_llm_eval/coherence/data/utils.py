@@ -1,7 +1,11 @@
 import json
 import math
 import random
+from collections.abc import MutableSequence
 from itertools import permutations
+from typing import Any
+
+from .types import DataRecord
 
 # --- Dependency: NLTK ---
 try:
@@ -28,29 +32,34 @@ IDX2SOURCE = {
 }
 
 
-def load_data(path: str) -> list[str]:
+def load_data(path: str) -> list[DataRecord]:
     with open(path) as fd:
         summaries = [json.loads(line) for line in fd.readlines()]
 
-    texts = []
+    records = []
     for summary in summaries:
         if "summary" in summary and summary["summary"] is not None and summary["summary"] != "":
-            texts.append(summary["summary"])
-    return texts
+            records.append(
+                DataRecord(
+                    text_raw=summary["text_raw"],
+                    summary=summary["summary"],
+                    source=IDX2SOURCE[summary["source"]],
+                )
+            )
+    return records
 
 
-def get_train_test_split(
-    texts: list[str],
-    test_size: float | None = None,
-) -> tuple[list[str], list[str]]:
-    if test_size is not None:
-        random.shuffle(texts)
-        train_set = texts[int(len(texts) * test_size) :]
-        test_set = texts[: int(len(texts) * test_size)]
+def get_data_split(
+    texts: MutableSequence[Any],
+    split_size: float | None = None,
+) -> tuple[MutableSequence[Any], MutableSequence[Any]]:
+    if split_size is None:
+        raise ValueError("Split size can't be None")
     else:
-        raise ValueError("Test size can't be None")
-
-    return train_set, test_set
+        random.shuffle(texts)
+        train_set = texts[int(len(texts) * split_size) :]
+        test_set = texts[: int(len(texts) * split_size)]
+        return train_set, test_set
 
 
 def generate_unique_shuffles(text: str, k_max: int) -> list[str]:

@@ -1,12 +1,15 @@
+from collections.abc import Iterable
+
 import torch
 from tqdm.auto import trange
 from transformers import AutoModelForSequenceClassification
 
 from .data.dataset import ShuffleRankingDataset
+from .data.types import DataRecord
 
 
 def ranking_eval(
-    test_data: list[str],
+    test_data: Iterable[DataRecord],
     model,
     model_name_or_path: str,
     tokenizer,
