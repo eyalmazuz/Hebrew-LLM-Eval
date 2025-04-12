@@ -36,6 +36,8 @@ class RandomSplitter(BaseSplitter):
             train_set, test_set = get_data_split(self.data, self.test_size)
             train_set, val_set = get_data_split(train_set, self.val_size)
 
+            print(f"Test size: {len(test_set)} | Val size: {len(val_set)} | Train size: {len(train_set)}")
+
             yield train_set, val_set, test_set
 
     def __str__(self):
@@ -67,6 +69,8 @@ class GroupSplitter(BaseSplitter):
             test_data = [record for record in self.data if getattr(record, self.split_key) == test_group]
             val_data = [record for record in self.data if getattr(record, self.split_key) == val_group]
             train_data = [record for record in self.data if getattr(record, self.split_key) == train_groups]
+
+            print(f"Test size: {len(test_data)} | Val size: {len(val_data)} | Train size: {len(train_data)}")
 
             yield train_data, val_data, test_data
 
