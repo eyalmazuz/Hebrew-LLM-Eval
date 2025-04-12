@@ -154,10 +154,10 @@ def run_training(
 
     all_test_results: list[dict[str, float]] = []
 
-    print(f"Starting {cv}-fold cross-validation")
     data_splitter = get_split_by_type(
         texts, split_type, split_key=split_key, num_splits=cv, test_size=test_size, val_size=val_size
     )
+    print(f"Starting {cv}-fold cross-validation witih {data_splitter}")
     for fold, (train_set, val_set, test_set) in enumerate(data_splitter.get_splits()):
         # --- Initialize W&B Run *Inside* the Loop for Each Fold ---
         run_name = f"Fold_{fold + 1}"

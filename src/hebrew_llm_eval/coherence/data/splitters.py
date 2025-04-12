@@ -38,6 +38,9 @@ class RandomSplitter(BaseSplitter):
 
             yield train_set, val_set, test_set
 
+    def __str__(self):
+        return "RandomSplitter"
+
 
 class GroupSplitter(BaseSplitter):
     def __init__(self, data: list[DataRecord], split_key: str | None, **kwargs) -> None:
@@ -57,6 +60,7 @@ class GroupSplitter(BaseSplitter):
     def get_splits(self) -> Iterable[tuple[Iterable[DataRecord], ...]]:
         group_keys = list(self.groups)
         for test_group in group_keys:
+            print(f"Test group: {test_group}")
             val_group = random.choice([g for g in group_keys if g != test_group])
             train_groups = [g for g in group_keys if g not in [test_group, val_group]]
 
@@ -65,6 +69,9 @@ class GroupSplitter(BaseSplitter):
             train_data = [record for record in self.data if getattr(record, self.split_key) == train_groups]
 
             yield train_data, val_data, test_data
+
+    def __str__(self):
+        return f"GroupSplitter: {self.split_key}"
 
 
 def get_split_by_type(data: list[DataRecord], split_type: SplitType, **kwargs) -> BaseSplitter:
