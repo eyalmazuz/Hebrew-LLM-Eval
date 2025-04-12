@@ -1,7 +1,7 @@
 import argparse
 
 from ...common.enums import SplitType  # Relative import from train/args.py
-from .handler.train import handle_train_cli
+from .handler import handle_train_cli
 
 
 def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: argparse.ArgumentParser) -> None:
