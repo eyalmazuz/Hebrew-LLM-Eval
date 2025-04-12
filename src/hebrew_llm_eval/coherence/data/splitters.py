@@ -60,9 +60,9 @@ class GroupSplitter(BaseSplitter):
     def get_splits(self) -> Iterable[tuple[Iterable[DataRecord], ...]]:
         group_keys = list(self.groups)
         for test_group in group_keys:
-            print(f"Test group: {test_group}")
             val_group = random.choice([g for g in group_keys if g != test_group])
             train_groups = [g for g in group_keys if g not in [test_group, val_group]]
+            print(f"Test group: {test_group} | Val group: {val_group} | Train groups: {train_groups}")
 
             test_data = [record for record in self.data if getattr(record, self.split_key) == test_group]
             val_data = [record for record in self.data if getattr(record, self.split_key) == val_group]
