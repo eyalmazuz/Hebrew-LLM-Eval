@@ -1,6 +1,7 @@
 import argparse
 
 from ...common.enums import SplitType  # Relative import from train/args.py
+from .handler.train import handle_train_cli
 
 
 def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: argparse.ArgumentParser) -> None:
@@ -51,4 +52,4 @@ def add_train_subcommand(subparsers: argparse._SubParsersAction, common_parser: 
     # Set the default function for the 'train' command
     # This function (handle_train_cli) is responsible for validating the relationship
     # between --split-type and --split-key after parsing.
-    # train_parser.set_defaults(func=handle_train_cli) # Assumes handle_train_cli exists
+    train_parser.set_defaults(func=handle_train_cli)  # Assumes handle_train_cli exists
