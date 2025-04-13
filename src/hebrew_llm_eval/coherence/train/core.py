@@ -145,10 +145,6 @@ def run_training(
     learning_rate: float = 5e-5,
     device: str = "cuda",  # Original default
 ) -> None:
-    # Generate a unique group name/ID for this specific cross-validation execution
-    cv_group_name = f"CV_Group_{uuid.uuid4().hex[:8]}"
-    print(f"Starting {cv}-fold cross-validation with W&B Group: {cv_group_name}")
-
     # Using your actual load_data function
     texts = load_data(data_path)
 
@@ -157,7 +153,9 @@ def run_training(
     data_splitter = get_split_by_type(
         texts, split_type, split_key=split_key, num_splits=cv, test_size=test_size, val_size=val_size
     )
-    print(f"Starting {cv}-fold cross-validation witih {data_splitter}")
+    # Generate a unique group name/ID for this specific cross-validation execution
+    cv_group_name = f"CV_Group_{data_splitter}_{uuid.uuid4().hex[:8]}"
+    print(f"Starting {cv}-fold cross-validation with W&B Group: {cv_group_name} and {data_splitter}")
     for fold, (train_set, val_set, test_set) in enumerate(data_splitter.get_splits()):
         # --- Initialize W&B Run *Inside* the Loop for Each Fold ---
         run_name = f"{cv_group_name}_Fold_{fold + 1}"
@@ -180,6 +178,9 @@ def run_training(
                 "test_size": test_size,
                 "val_size": val_size,
                 "data_path": data_path,
+                "data_splitter": data_splitter,
+                "split_type": split_type,
+                "split_key": split_key,
             },
         )
         # -----------------------------------------------------------
