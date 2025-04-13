@@ -125,7 +125,7 @@ def train_and_evaluate(
         "train_dataset": train_dataset,
         "eval_dataset": val_dataset,
         "compute_metrics": compute_metrics,
-        "tokenizer": tokenizer,  # Pass tokenizer for saving purposes
+        "processing_class": tokenizer,  # Pass tokenizer for saving purposes
     }
 
     # Add specific arguments based on the trainer type

@@ -47,7 +47,7 @@ class FocalLoss(nn.Module):
         self.alpha = alpha
         self.reduction = reduction
 
-    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor, **kwargs) -> torch.Tensor:
         """
         Calculates the Focal Loss.
 
@@ -107,7 +107,7 @@ class WeightedLossTrainer(Trainer):
         # Store class weights (will ensure correct device in compute_loss)
         self.class_weights = class_weights
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         """
         Computes the loss using CrossEntropyLoss with optional class weights.
         """
@@ -156,7 +156,7 @@ class FocalLossTrainer(Trainer):
         self.focal_loss_alpha = focal_loss_alpha
         self.focal_loss_gamma = focal_loss_gamma
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         """
         Computes the loss using the FocalLoss implementation.
         """
