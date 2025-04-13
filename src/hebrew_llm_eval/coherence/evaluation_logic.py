@@ -18,6 +18,7 @@ def ranking_eval(
     k_max: int,  # Max number of shuffles per item
     max_length: int,
     device: str,
+    num_labels: int,
     k_values_for_metrics: list[int] = [3, 5, 10],  # K values for Recall and NDCG
 ) -> dict[str, float]:  # Return type hint might need adjustment if including counts
     """

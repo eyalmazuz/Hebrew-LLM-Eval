@@ -8,3 +8,11 @@ class SplitType(enum.StrEnum):
 
     RANDOM = "random"
     KEY = "key"
+
+
+class TrainerType(enum.StrEnum):
+    """Enumeration for trainer types (using StrEnum)."""
+
+    DEFAULT = "default"
+    WEIGHTED = "weighted"
+    FOCAL = "focal"
