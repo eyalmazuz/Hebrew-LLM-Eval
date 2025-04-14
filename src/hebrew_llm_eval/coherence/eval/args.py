@@ -8,7 +8,7 @@ from .handler import handle_eval_cli  # *** Assumes handle_eval_cli exists ***
 def add_eval_subcommand(subparsers: argparse._SubParsersAction, common_parser: argparse.ArgumentParser) -> None:
     """Adds the 'eval' subcommand to the 'coherence' parser."""
     eval_parser = subparsers.add_parser(
-        "eval",
+        "evaluate",
         help="Evaluate a trained coherence model.",
         parents=[common_parser],  # Inherit common options like -v, -c
         description="Evaluate a trained sequence coherence model on new data.",  # More specific description
