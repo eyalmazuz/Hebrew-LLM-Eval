@@ -35,7 +35,7 @@ def handle_eval_cli(args: argparse.Namespace) -> None:
             # Training Hyperparameters
             batch_size=args.batch_size,
             num_labels=args.num_labels,
-            output_dir=args.output_dir,
+            output_dir=args.output_file,
             device=args.device,
         )
 
