@@ -29,7 +29,7 @@ def handle_eval_cli(args: argparse.Namespace) -> None:
             # Data/Split Args
             data_path=args.data_path,
             # Model/Tokenization Args
-            model_name=args.model_name,
+            model_name=args.model_path,
             max_length=args.max_length,
             k_max=args.k_max,
             # Training Hyperparameters
