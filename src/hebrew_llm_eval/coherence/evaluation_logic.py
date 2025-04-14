@@ -45,7 +45,7 @@ def ranking_eval(
         print(f"Loading model from {model_name_or_path}...")
         model = AutoModelForSequenceClassification.from_pretrained(
             model_name_or_path,
-            num_labels=2,
+            num_labels=num_labels,
             ignore_mismatched_sizes=True,
             problem_type="single_label_classification",
             attn_implementation="sdpa",  # Use "eager" if sdpa gives errors
