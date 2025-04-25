@@ -34,7 +34,7 @@ def train_and_evaluate(
     # Data sets
     train_set: Iterable[DataRecord],
     val_set: Iterable[DataRecord],
-    test_set: Iterable[DataRecord],
+    test_set: Iterable[DataRecord] | None,
     # Model and tokenizer args
     model_name: str,
     num_labels: int,  # Added num_labels
@@ -168,7 +168,7 @@ def train_and_evaluate(
 
     # --- Evaluation ---
     test_results = {}
-    if not no_test:
+    if not no_test and test_set is not None:
         print("Starting final evaluation on test set...")
         # Use the best model loaded by the trainer
         best_model = trainer.model
@@ -242,7 +242,13 @@ def run_training(
 
     # Setup data splitter
     data_splitter = get_split_by_type(
-        texts, split_type, split_key=split_key, num_splits=cv, test_size=test_size, val_size=val_size
+        texts,
+        split_type,
+        split_key=split_key,
+        num_splits=cv,
+        test_size=test_size,
+        val_size=val_size,
+        no_test=no_test,
     )
 
     # Generate a unique group name/ID for this specific execution (CV or single run)
@@ -252,7 +258,7 @@ def run_training(
     print(f"Data splitting strategy: {data_splitter}")
 
     # --- Cross-Validation Loop ---
-    for fold, (train_set, val_set, test_set) in enumerate(data_splitter.get_splits()):
+    for fold, split in enumerate(data_splitter.get_splits()):
         fold_num = fold + 1
         print(f"\n--- Starting Fold {fold_num}/{cv} ---")
 
@@ -308,9 +314,9 @@ def run_training(
 
             # Call train_and_evaluate, passing down all necessary arguments
             fold_test_results = train_and_evaluate(
-                train_set=train_set,
-                val_set=val_set,
-                test_set=test_set,
+                train_set=split["train"],
+                val_set=split["val"],
+                test_set=split.get("test", None),
                 # Model/Tokenizer
                 model_name=model_name,
                 num_labels=num_labels,  # Pass num_labels
