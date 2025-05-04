@@ -13,12 +13,13 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Run article and summary matching.")
+    parser = argparse.ArgumentParser(description="Run stance pipeline.")
     parser.add_argument("--data", type=str, required=True, help="Dataset name (e.g., biunlp/HeSum or custom).")
-    parser.add_argument("--path", type=str, help="Path to custom dataset JSON.")
+    parser.add_argument("--path", default="./Data/datasets/summarization-7-heb.jsonl", type=str, help="Path to custom dataset JSON.")
     parser.add_argument("--threshold", type=float, default=0.8, help="Matching threshold.")
     parser.add_argument("--top-k-matches", type=int, default=1, help="Number of top matches to consider.")
     parser.add_argument("--save-matches", action="store_true", help="Save matching results to CSV.")
+    parser.add_argument("--output-dir", default="./Data/output/stance_preservation_test.json", help="Save stance preservation results to JSON.")
     args = parser.parse_args()
 
     try:
@@ -46,14 +47,17 @@ if __name__ == '__main__':
     
     # Load model and tokenizer
     # model_name = 'dicta-il/dictabert-sentiment'
-    model_name = 'fine_tuned_dictabert'
-    model, tokenizer = load_model(model_name)
+    model_name = 'weighted_test'
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     # Classify stance for each sentence in article and summary
     result = compute_stance_preservation(data, model, tokenizer)
     
     # Save results
-    output_path = 'Data/output/stance_preservation.csv'
-    result_df = pd.DataFrame(result)
-    result_df.to_csv(output_path, index=False)
-    print(f"Stance preservation results saved to {output_path}")
+    if args.save_matches:
+        output_path = args.output_dir
+        result_df = pd.DataFrame(result)
+        # result_df.to_csv(output_path, index=False)
+        result_df.to_json(output_path, orient='records', force_ascii=False, indent=2)
+        print(f"Stance preservation results saved to {output_path}")

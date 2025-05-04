@@ -11,7 +11,14 @@ from collections import namedtuple
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 import torch.nn.functional as F
-import pandas as pd
+import numpy as np
+from transformers import TrainingArguments, Trainer
+from evaluate import load
+import torch.nn as nn
+from sklearn.metrics import f1_score, accuracy_score
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 IDX2SOURCE = {
     0: "Weizmann",
@@ -161,8 +168,8 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
     Match = namedtuple('Match', [
         'summary_sentence', 
         'article_sentences',
-        'stance_preservation', 
         'kl_divergences',
+        'kl_mean',
         'summary_stance',
         'summary_stance_score',
         'article_stances',
@@ -173,11 +180,11 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
     dataset_length = get_dataset_length(dataset)
     # num_articles_to_process = min(num_articles, dataset_length)
 
-    print("\nArticle Matching Results")
+    # print("\nArticle Matching Results")
     # print(f"Processing {num_articles_to_process} articles out of {dataset_length} total articles")
 
     # for idx in range(dataset_length):
-    for idx in range(3):
+    for idx in range(500):
         # print(f"\nArticle {idx + 1}")
 
         try:
@@ -218,8 +225,8 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
                 match = Match(
                     summary_sentence=target_sentence, 
                     article_sentences=best_matches,
-                    stance_preservation=None,  # Default to None
                     kl_divergences=None,       # Default to None
+                    kl_mean=None,              # Default to None
                     summary_stance=None,       # Default to None
                     summary_stance_score=None, # Default to None
                     article_stances=None,      # Default to None
@@ -264,15 +271,30 @@ def load_matching_matrix(csv_path):
     print(df.head())
     return df
 
-def load_model(model_name):
-    """Load the stance detection model and tokenizer."""
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    return model, tokenizer
+# def load_model(model_name):
+#     """Load the stance detection model and tokenizer."""
+#     model = AutoModelForSequenceClassification.from_pretrained(model_name)
+#     tokenizer = AutoTokenizer.from_pretrained(model_name)
+#     return model, tokenizer
 
 def classify_stance(sentences, model, tokenizer):
     """Classify stance (sentiment) for a list of sentences and return labels with probabilities."""
-    labels = ['negative', 'neutral', 'positive']  # Adjust according to model output labels
+    labels = ['דת ומדינה_תומך', 'דת ומדינה_מתנגד', 'דת ומדינה_נייטרלי', 
+              'פוליטיקה וממשל_תומך', 'פוליטיקה וממשל_מתנגד', 'פוליטיקה וממשל_נייטרלי', 
+              'הסכסוך הישראלי-פלסטיני_תומך', 'הסכסוך הישראלי-פלסטיני_מתנגד', 'הסכסוך הישראלי-פלסטיני_נייטרלי', 
+              'ביטחון_תומך', 'ביטחון_מתנגד', 'ביטחון_נייטרלי', 
+              'כלכלה וחברה_תומך', 'כלכלה וחברה_מתנגד', 'כלכלה וחברה_נייטרלי', 
+              'זכויות אדם ושוויון_תומך', 'זכויות אדם ושוויון_מתנגד', 'זכויות אדם ושוויון_נייטרלי', 
+              'תקשורת ודמוקרטיה_תומך', 'תקשורת ודמוקרטיה_מתנגד', 'תקשורת ודמוקרטיה_נייטרלי', 
+              'בריאות ורווחה_תומך', 'בריאות ורווחה_מתנגד', 'בריאות ורווחה_נייטרלי', 
+              'חינוך ותרבות_תומך', 'חינוך ותרבות_מתנגד', 'חינוך ותרבות_נייטרלי', 
+              'תחבורה ותשתיות_תומך', 'תחבורה ותשתיות_מתנגד', 'תחבורה ותשתיות_נייטרלי', 
+              'סביבה ואקלים_תומך', 'סביבה ואקלים_מתנגד', 'סביבה ואקלים_נייטרלי', 
+              'מדיניות חוץ והגירה_תומך', 'מדיניות חוץ והגירה_מתנגד', 'מדיניות חוץ והגירה_נייטרלי', 
+              'פיתוח אזורי_תומך', 'פיתוח אזורי_מתנגד', 'פיתוח אזורי_נייטרלי', 
+              'אלימות וחוק_תומך', 'אלימות וחוק_מתנגד', 'אלימות וחוק_נייטרלי', 
+              'חדשנות וטכנולוגיה_תומך', 'חדשנות וטכנולוגיה_מתנגד', 'חדשנות וטכנולוגיה_נייטרלי', 
+              'ספורט_תומך', 'ספורט_מתנגד', 'ספורט_נייטרלי']
     results = []
     probs = []
     
@@ -323,16 +345,13 @@ def compute_stance_preservation(data, model, tokenizer):
         # Compute KL divergences for each article sentence
         kl_scores = [kl_divergence(summary_probs[0], article_prob) 
                      for article_prob in article_probs_list]
-        
-        # Determine stance preservation
-        # Check if any article sentence has the same stance as the summary
-        # TODO change the check
-        stance_preserved = 'Preserved' if any(s == summary_stance for s in article_stances) else 'Not Preserved'
-        
+        # Compute mean KL divergence
+        kl_mean = np.mean(kl_scores)
+
         # Create a new namedtuple with additional information
         updated_match = match._replace(
-            stance_preservation=stance_preserved,
             kl_divergences=kl_scores,
+            kl_mean=kl_mean,
             summary_stance=summary_stance,
             summary_stance_score=summary_score,
             article_stances=article_stances,
@@ -378,3 +397,117 @@ def compute_stance_preservation(data, model, tokenizer):
     # df['Stance Preservation'] = stance_preservation
     # df['KL Divergence'] = kl_divergences
     # return df
+
+
+# --------------------------------------------------------------- finetuning functions ---------------------------------------------------------------
+# Dataset class
+class StanceDataset(torch.utils.data.Dataset):
+    def __init__(self, texts, labels, tokenizer, label2id, max_length=512):
+        self.texts = texts
+        self.labels = [label2id[label] for label in labels]
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        # Handle both single index and list of indices
+        if isinstance(idx, int):
+            # Single index case
+            text = self.texts[idx]
+            label = self.labels[idx]
+            
+            encoding = self.tokenizer(
+                text,
+                truncation=True,
+                padding="max_length",
+                max_length=self.max_length,
+                return_tensors="pt"
+            )
+            
+            # Remove batch dimension added by tokenizer when return_tensors="pt"
+            encoding = {key: val.squeeze(0) for key, val in encoding.items()}
+            encoding["labels"] = torch.tensor(label, dtype=torch.long)
+            return encoding
+        else:
+            # This should not happen as DataLoader normally calls __getitem__ with integers
+            # But we'll handle it by returning a list of individual items
+            return [self.__getitem__(i) for i in idx]
+
+
+# Custom Trainer with class weights
+class WeightedTrainer(Trainer):
+    def __init__(self, *args, class_weights=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.class_weights = class_weights
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):  
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+        loss_fct = nn.CrossEntropyLoss(weight=self.class_weights)
+        loss = loss_fct(logits, labels)
+        return (loss, outputs) if return_outputs else loss
+
+
+def load_model(model_name):
+    """Load the stance detection model and tokenizer."""
+    try:
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=3).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        print(f"Model and tokenizer loaded successfully from {model_name}")
+        return model, tokenizer
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        raise
+
+
+# Prediction
+def predict_stance(text, model, tokenizer, id2label):
+    encoding = tokenizer(
+        text,
+        truncation=True,
+        padding="max_length",
+        max_length=512,
+        return_tensors="pt"
+    ).to(device)
+
+    model.eval()
+    with torch.no_grad():
+        outputs = model(**encoding)
+    prediction = torch.argmax(outputs.logits, dim=-1).item()
+    return id2label[prediction]
+
+
+# Evaluation
+def evaluate_model(model, eval_dataloader):
+    model.to(device)
+    model.eval()
+    predictions, references = [], []
+
+    for batch in eval_dataloader:
+        batch = {k: v.to(device) for k, v in batch.items()}
+        with torch.no_grad():
+            outputs = model(**batch)
+
+        preds = torch.argmax(outputs.logits, dim=-1)
+        predictions.extend(preds.cpu().tolist())
+        references.extend(batch["labels"].cpu().tolist())
+
+    metric = load("accuracy")
+    return metric.compute(predictions=predictions, references=references)
+
+
+def compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    preds = np.argmax(logits, axis=-1).tolist()
+    f1 = f1_score(labels, preds, average='macro')
+    acc = accuracy_score(labels, preds)
+
+    accuracy = load("accuracy").compute(predictions=preds, references=labels)
+    f1_macro = load("f1").compute(predictions=preds, references=labels, average="macro")
+    return {
+        "f1_macro": f1,
+        "accuracy": acc,
+    }
