@@ -339,13 +339,27 @@ if __name__ == "__main__":
 
     # 4
     # concat all csv files in the directory
-    df1 = pd.read_csv('./Data/Hebrew_stance_dataset_modified_.csv')
-    df2 = pd.read_csv('./Data/Hebrew_stance_dataset_modified.csv')
+    # df1 = pd.read_csv('./Data/Hebrew_stance_dataset_modified_.csv')
+    # df2 = pd.read_csv('./Data/Hebrew_stance_dataset_modified.csv')
 
-    print("Loaded CSV files successfully.")
+    # print("Loaded CSV files successfully.")
 
-    combined_df = pd.concat([df1, df2], ignore_index=True)
+    # combined_df = pd.concat([df1, df2], ignore_index=True)
 
-    combined_df.to_csv('./Data/Hebrew_stance_dataset_combined.csv', index=False)
+    # combined_df.to_csv('./Data/Hebrew_stance_dataset_combined.csv', index=False)
 
-    print(f"Combined dataset contains {len(combined_df)} rows")
+    # print(f"Combined dataset contains {len(combined_df)} rows")
+
+
+
+
+    # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    new_data = pd.read_csv('./Data/datasets/HF_Gen_data.csv')
+    print("Loaded CSV file successfully.")
+    # new_data['Topic'] = new_data['Topic'].replace('תקשורת_نייטרלי', 'תקשורת_נייטרלי')
+    # new_data['Topic'] = new_data['topic'] + '_' + new_data['stance']
+    # new_data = new_data.rename(columns={'sentence': 'Text'})
+    
+
+    print(new_data.head())
+    new_data.to_csv('./Data/datasets/HF_Gen_data.csv', index=False)

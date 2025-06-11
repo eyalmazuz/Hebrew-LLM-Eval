@@ -16,7 +16,12 @@ from transformers import TrainingArguments, Trainer
 from evaluate import load
 import torch.nn as nn
 from sklearn.metrics import f1_score, accuracy_score
-
+import ot
+from math import log as ln
+from torch.distributions import Categorical
+import nltk
+from sentence_transformers import SentenceTransformer, util
+nltk.download('punkt_tab')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -97,6 +102,40 @@ def split_into_sentences(text):
     sentences = [sent.strip() for sent in re.split(separators, text) if sent.strip()]
     return sentences
 
+def smart_split_by_similarity(text, similarity_threshold=0.8): # Threshold needs tuning
+    # 1. Standard split
+    sentences = nltk.sent_tokenize(text)
+
+    if not sentences:
+        return []
+
+    # 2. Load a sentence transformer model
+    model = SentenceTransformer('all-MiniLM-L6-v2') # A good general-purpose model
+
+    # 3. Get embeddings for all sentences
+    embeddings = model.encode(sentences, convert_to_tensor=True)
+
+    smart_segments = []
+    current_segment = sentences[0]
+
+    # 4. Iterate and decide whether to merge based on similarity
+    for i in range(len(sentences) - 1):
+        # Calculate similarity between sentence i and sentence i+1
+        similarity = util.cos_sim(embeddings[i], embeddings[i+1]).item()
+
+        if similarity > similarity_threshold:
+            # Sentences are similar enough, merge them
+            current_segment += " " + sentences[i+1] # Or however you want to join
+        else:
+            # Not similar enough, end the current segment and start a new one
+            smart_segments.append(current_segment)
+            current_segment = sentences[i+1]
+
+    # Add the last segment
+    smart_segments.append(current_segment)
+
+    return smart_segments
+
 def ensure_output_dir():
     """Create output directory if it doesn't exist."""
     output_dir = "./Data/output"
@@ -164,10 +203,12 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
     metadata_data = []  
 
     # define namedtuple
-    Match = namedtuple('Match', ['summary_sentence', 'article_sentences'])
+    # Match = namedtuple('Match', ['summary_sentence', 'article_sentences'])
     Match = namedtuple('Match', [
         'summary_sentence', 
         'article_sentences',
+        'emd',
+        'emd_mean',
         'kl_divergences',
         'kl_mean',
         'summary_stance',
@@ -184,7 +225,7 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
     # print(f"Processing {num_articles_to_process} articles out of {dataset_length} total articles")
 
     # for idx in range(dataset_length):
-    for idx in range(500):
+    for idx in range(10):
         # print(f"\nArticle {idx + 1}")
 
         try:
@@ -192,6 +233,9 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
 
             source_chunks = split_into_sentences(article)
             target_chunks = split_into_sentences(summary)
+
+            # source_chunks = smart_split_by_similarity(article)
+            # target_chunks = smart_split_by_similarity(summary)
 
             if not source_chunks or not target_chunks:
                 print(f"Warning: Empty chunks found for article {idx + 1}, skipping...")
@@ -217,14 +261,11 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
                         best_matches.append((source_sentence, matching_matrix[i, j]))
                         # best_matches_scores.append(matching_matrix[i, j])
                 best_matches = sorted(best_matches, key=lambda x: x[1], reverse=True)[:top_k_matches]
-                # best_matches_scores = sorted(best_matches_scores, reverse=True)[:top_k_matches]
-                # best_match_idx = matching_matrix[i].argmax()
-                # best_match_score = matching_matrix[i, best_match_idx]
-                # best_match_sentence = source_chunks[best_match_idx]
-                # matches.append(Match(summary_sentence=target_sentence, article_sentences=best_matches))
                 match = Match(
                     summary_sentence=target_sentence, 
                     article_sentences=best_matches,
+                    emd=None,
+                    emd_mean=None,
                     kl_divergences=None,       # Default to None
                     kl_mean=None,              # Default to None
                     summary_stance=None,       # Default to None
@@ -362,42 +403,212 @@ def compute_stance_preservation(data, model, tokenizer):
     
     return updated_data
 
-    # stance_preservation = []
-    # # summary_stance_scores = []
-    # # article_stance_scores = []
-    # kl_divergences = []
-    
-    # for idx, row in df.iterrows():
-    #     summary_sentence = row['Sentence in Summary']
-    #     article_sentence = row['Best Match Sentence From Article']
-        
-    #     summary_results, summary_probs = classify_stance([summary_sentence], model, tokenizer)
-    #     article_results, article_probs = classify_stance([article_sentence], model, tokenizer)
+def get_topic_stance_values(class_index, num_stances_per_topic=3):
+    topic_id = class_index // num_stances_per_topic
+    stance_value = class_index % num_stances_per_topic  # 0, 1, or 2
+    return topic_id, stance_value
 
-    #     summary_stance, summary_score = summary_results[0]
-    #     article_stance, article_score = article_results[0]
-        
-    #     # summary_stance_scores.append(f"{summary_stance} ({summary_score:.4f})")
-    #     # article_stance_scores.append(f"{article_stance} ({article_score:.4f})")
-        
-    #     """
-    #     We want the KL to be small when the summary and article have similar stances.
-    #     """
-    #     # KL on rows
-    #     kl_score = kl_divergence(summary_probs[0], article_probs[0])
-    #     kl_divergences.append(kl_score)
-        
-    #     if summary_stance == article_stance:
-    #         stance_preservation.append('Preserved')
-    #     else:
-    #         stance_preservation.append('Not Preserved')
-    
-    # # df['Summary Stance (Score)'] = summary_stance_scores
-    # # df['Article Stance (Score)'] = article_stance_scores
-    # df['Stance Preservation'] = stance_preservation
-    # df['KL Divergence'] = kl_divergences
-    # return df
+def compute_stance_preservation_emd(data, model, tokenizer):
+    """Compute stance preservation and emd between sentiment distributions."""
+    updated_data = []
+    Topic_Mismatch_Penalty = 3.0
+    num_labels = 48  
+    num_classes = 48
 
+
+    
+    for match in data:
+        # Summary sentence
+        summary_sentence = match.summary_sentence
+        
+        # Classify stance for summary sentence
+        summary_results, summary_probs = classify_stance([summary_sentence], model, tokenizer)
+        summary_stance, summary_score = summary_results[0]
+        
+        # Process each article sentence
+        article_stances = []
+        article_stance_scores = []
+        article_probs_list = []
+        
+        for article_sentence in match.article_sentences:
+            # Classify stance for each article sentence
+            article_results, article_probs = classify_stance([article_sentence[0]], model, tokenizer)
+            article_stance, article_score = article_results[0]
+            
+            article_stances.append(article_stance)
+            article_stance_scores.append(article_score)
+            article_probs_list.append(article_probs[0])
+        
+        distance_matrix = np.zeros((num_classes, num_classes))
+        
+        for i in range(num_classes):
+            topic_i, stance_val_i = get_topic_stance_values(i)
+            for j in range(num_classes):
+                if i == j:
+                    distance_matrix[i, j] = 0.0
+                else:
+                    topic_j, stance_val_j = get_topic_stance_values(j)
+                    if topic_i == topic_j:
+                        distance_matrix[i, j] = float(abs(stance_val_i - stance_val_j))
+                    else:
+                        distance_matrix[i, j] = Topic_Mismatch_Penalty
+
+        
+        summary_probs[0] /= np.sum(summary_probs[0])
+        summary_tensor = torch.tensor(summary_probs[0])
+
+        emd_scores = []
+        for article_prob in article_probs_list:
+            article_tensor = torch.tensor(article_prob)
+            sum_entropy = Categorical(probs=summary_tensor).entropy()
+            art_entropy = Categorical(probs=article_tensor).entropy()
+            if sum_entropy > ln(num_classes) / 2 or art_entropy > ln(num_classes) / 2:
+                # don't include the pair in the final metric value 
+                continue
+
+            article_prob /= np.sum(article_prob)
+
+            model_probabilities_f64 = np.asarray(summary_probs[0], dtype=np.float64)
+            target_probabilities_f64 = np.asarray(article_prob, dtype=np.float64)
+            distance_matrix_f64 = np.asarray(distance_matrix, dtype=np.float64)
+
+            emd_value = ot.emd2(model_probabilities_f64, target_probabilities_f64, distance_matrix_f64)
+            emd_scores.append(emd_value)
+
+        if len(emd_scores) > 0:
+            emd_mean = np.mean(emd_scores)
+        else:
+            emd_mean = None            
+            
+        # Create a new namedtuple with additional information
+        updated_match = match._replace(
+            emd=emd_scores,
+            emd_mean=emd_mean,
+            summary_stance=summary_stance,
+            summary_stance_score=summary_score,
+            article_stances=article_stances,
+            article_stance_scores=article_stance_scores
+        )
+        
+        updated_data.append(updated_match)
+    
+    return updated_data
+
+# def preprocess(example, tokenizer, label2id):
+#     combined = f"{example['sentence']} [SEP] {example['topic']}"
+#     inputs = tokenizer(
+#         combined,
+#         truncation=True,
+#         padding="max_length",
+#         max_length=128
+#     )
+#     inputs["label"] = label2id[example["stance"]]
+#     return inputs
+
+
+def classify_stance_with_topic(sentence, topic, model, tokenizer):
+    """Classify stance for a single sentence with topic context."""
+    # Prepare labels for Hebrew stance classification
+    labels = ['בעד', 'נגד', 'נייטרלי']  # favor, against, neutral
+    
+    # Combine sentence with topic
+    combined_input = f"{sentence} [SEP] {topic}"
+    
+    inputs = tokenizer(combined_input, return_tensors='pt', truncation=True, padding=True)
+    
+    with torch.no_grad():
+        outputs = model(**inputs)
+    
+    logits = outputs.logits
+    probabilities = F.softmax(logits, dim=1).squeeze().tolist()
+    predicted_class = torch.argmax(logits, dim=1).item()
+    
+    return labels[predicted_class], probabilities[predicted_class], probabilities
+
+
+def compute_stance_preservation_with_topic(dataset, model, tokenizer):
+    """Compute stance preservation between article and summary sentences."""
+    results = []
+    Topic_Mismatch_Penalty = 3.0
+    num_classes = 3
+
+    for item in dataset:
+        try:
+            # Get sentences and topics
+            article_sentence = item["article_sentence"]
+            article_topic = item["article_topic"]
+            summary_sentence = item["summary_sentence"]
+            summary_topic = item["summary_topic"]
+            
+            # Classify stance for both sentences
+            summary_stance, summary_score, summary_probs = classify_stance_with_topic(
+                summary_sentence, summary_topic, model, tokenizer
+            )
+            
+            article_stance, article_score, article_probs = classify_stance_with_topic(
+                article_sentence, article_topic, model, tokenizer
+            )
+            
+            # Create distance matrix for EMD calculation
+            distance_matrix = np.zeros((num_classes, num_classes))
+            
+            for i in range(num_classes):
+                topic_i, stance_val_i = get_topic_stance_values(i)
+                for j in range(num_classes):
+                    if i == j:
+                        distance_matrix[i, j] = 0.0
+                    else:
+                        topic_j, stance_val_j = get_topic_stance_values(j)
+                        if topic_i == topic_j:
+                            distance_matrix[i, j] = float(abs(stance_val_i - stance_val_j))
+                        else:
+                            distance_matrix[i, j] = Topic_Mismatch_Penalty
+            
+            # Normalize probabilities
+            summary_probs = np.array(summary_probs) / np.sum(summary_probs)
+            article_probs = np.array(article_probs) / np.sum(article_probs)
+            
+            # Calculate entropy to filter out uncertain predictions
+            summary_tensor = torch.tensor(summary_probs)
+            article_tensor = torch.tensor(article_probs)
+            
+            sum_entropy = Categorical(probs=summary_tensor).entropy()
+            art_entropy = Categorical(probs=article_tensor).entropy()
+            
+            # Skip if entropy is too high (uncertain predictions)
+            if sum_entropy > ln(num_classes) / 2 or art_entropy > ln(num_classes) / 2:
+                continue
+            
+            # Calculate EMD (Earth Mover's Distance)
+            model_probabilities_f64 = np.asarray(summary_probs, dtype=np.float64)
+            target_probabilities_f64 = np.asarray(article_probs, dtype=np.float64)
+            distance_matrix_f64 = np.asarray(distance_matrix, dtype=np.float64)
+            
+            emd_value = ot.emd2(model_probabilities_f64, target_probabilities_f64, distance_matrix_f64)
+            
+            # Store results
+            result = {
+                "article_sentence": article_sentence,
+                "article_topic": article_topic,
+                "article_stance": article_stance,
+                "article_stance_score": article_score,
+                "article_probabilities": article_probs.tolist(),
+                "summary_sentence": summary_sentence,
+                "summary_topic": summary_topic,
+                "summary_stance": summary_stance,
+                "summary_stance_score": summary_score,
+                "summary_probabilities": summary_probs.tolist(),
+                "emd_score": emd_value,
+                "stance_match": article_stance == summary_stance
+            }
+            
+            results.append(result)
+            
+        except Exception as e:
+            print(f"Error processing item: {e}")
+            continue
+    
+    return results
 
 # --------------------------------------------------------------- finetuning functions ---------------------------------------------------------------
 # Dataset class
@@ -443,12 +654,56 @@ class WeightedTrainer(Trainer):
         self.class_weights = class_weights
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):  
-        labels = inputs.pop("labels")
+        labels = inputs.get("labels")  
+        
+        # Forward pass with all inputs including labels
         outputs = model(**inputs)
-        logits = outputs.logits
-        loss_fct = nn.CrossEntropyLoss(weight=self.class_weights)
-        loss = loss_fct(logits, labels)
-        return (loss, outputs) if return_outputs else loss
+        
+        # Handle different output formats
+        if hasattr(outputs, 'logits'):
+            # Standard transformers model output
+            raw_logits = outputs.logits
+        elif isinstance(outputs, tuple) and len(outputs) >= 2:
+            # Custom model returning (loss, logits)
+            raw_logits = outputs[1]
+        elif isinstance(outputs, tuple) and len(outputs) == 1:
+            # Only logits returned
+            raw_logits = outputs[0]
+        else:
+            # Direct logits tensor
+            raw_logits = outputs
+
+        # Cast these raw_logits to float32 for the weighted loss calculation
+        logits_for_weighted_loss_calc = raw_logits.float()
+
+        loss_fct_args = {}
+        if self.class_weights is not None:
+            current_device = logits_for_weighted_loss_calc.device
+            weights = self.class_weights.to(device=current_device, dtype=torch.float32)
+            loss_fct_args["weight"] = weights
+        
+        loss_fct = nn.CrossEntropyLoss(**loss_fct_args)
+        
+        # Calculate the weighted loss
+        recalculated_loss = loss_fct(logits_for_weighted_loss_calc, labels)
+        
+        if return_outputs:
+            # Return the outputs in the expected format
+            if hasattr(outputs, 'logits'):
+                # For standard transformers outputs, create a new output object
+                from transformers.modeling_outputs import SequenceClassifierOutput
+                new_outputs = SequenceClassifierOutput(
+                    loss=recalculated_loss,
+                    logits=raw_logits,
+                    hidden_states=getattr(outputs, 'hidden_states', None),
+                    attentions=getattr(outputs, 'attentions', None)
+                )
+                return (recalculated_loss, new_outputs)
+            else:
+                # For tuple outputs
+                return (recalculated_loss, (recalculated_loss, raw_logits))
+        else:
+            return recalculated_loss
 
 
 def load_model(model_name):
@@ -499,15 +754,58 @@ def evaluate_model(model, eval_dataloader):
     return metric.compute(predictions=predictions, references=references)
 
 
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
-    preds = np.argmax(logits, axis=-1).tolist()
-    f1 = f1_score(labels, preds, average='macro')
-    acc = accuracy_score(labels, preds)
+# def compute_metrics(eval_pred):
+#     logits, labels = eval_pred
+#     preds = np.argmax(logits, axis=-1).tolist()
+#     f1 = f1_score(labels, preds, average='macro')
+#     acc = accuracy_score(labels, preds)
 
-    accuracy = load("accuracy").compute(predictions=preds, references=labels)
-    f1_macro = load("f1").compute(predictions=preds, references=labels, average="macro")
+#     accuracy = load("accuracy").compute(predictions=preds, references=labels)
+#     f1_macro = load("f1").compute(predictions=preds, references=labels, average="macro")
+#     return {
+#         "f1_macro": f1,
+#         "accuracy": acc,
+#     }
+
+def compute_metrics(p): 
+    # Handle different prediction formats
+    if hasattr(p, 'predictions'):
+        predictions = p.predictions
+    else:
+        predictions = p
+    
+    # Extract logits from different possible formats
+    if isinstance(predictions, tuple):
+        # If predictions is a tuple, try to get logits
+        if len(predictions) >= 2:
+            logits_tensor = predictions[1]  # Usually (loss, logits)
+        else:
+            logits_tensor = predictions[0]
+    else:
+        logits_tensor = predictions
+    
+    # Convert to numpy if it's a tensor
+    if hasattr(logits_tensor, 'detach'):
+        logits_tensor = logits_tensor.detach().cpu().numpy()
+    
+    preds = np.argmax(logits_tensor, axis=1)
+    
+    # Handle labels
+    if hasattr(p, 'label_ids'):
+        labels = p.label_ids
+    else:
+        labels = p.labels
+    
+    # Convert labels to numpy if needed
+    if hasattr(labels, 'detach'):
+        labels = labels.detach().cpu().numpy()
+    
+    acc = accuracy_score(labels, preds)
+    f1_macro = f1_score(labels, preds, average='macro')  # Changed to macro for better handling of imbalanced classes
+    f1_weighted = f1_score(labels, preds, average='weighted')
+    
     return {
-        "f1_macro": f1,
-        "accuracy": acc,
+        'accuracy': acc,
+        'f1': f1_weighted,
+        'f1_macro': f1_macro,
     }

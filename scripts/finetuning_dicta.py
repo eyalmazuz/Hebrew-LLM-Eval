@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
         # Split data
         train_texts, temp_texts, train_labels, temp_labels = train_test_split(
-            texts, labels, test_size=0.2, random_state=42
+            texts, labels, test_size=0.3, random_state=42
         )
         eval_texts, test_texts, eval_labels, test_labels = train_test_split(
             temp_texts, temp_labels, test_size=0.5, random_state=42
@@ -73,7 +73,7 @@ if __name__ == '__main__':
             # choose the rarest labels
             label_counts = Counter(train_dataset.labels)
             sorted_labels_by_freq = sorted(label_counts.items(), key=lambda x: x[1])
-            rare_labels = [label for label, count in sorted_labels_by_freq[:18]]  # the 6 smallest
+            rare_labels = [label for label, count in sorted_labels_by_freq[:33]]  # the 11 smallest
 
             print("Rare labels:", rare_labels)
 
