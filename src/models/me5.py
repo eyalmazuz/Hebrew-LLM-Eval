@@ -3,6 +3,7 @@ import torch
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import re
+from sentence_transformers import SentenceTransformer
 
 
 def create_matching_matrix_with_e5(source_sentences, target_sentences):
@@ -52,47 +53,36 @@ def create_matching_matrix_with_e5(source_sentences, target_sentences):
     return source_sentences, target_sentences, matching_matrix, normalized_matrix
 
 
+def get_detailed_instruct(task_description: str, query: str) -> str:
+    return f'Instruct: {task_description}\nQuery: {query}'
+
 def create_matching_matrix_with_e5_instruct(source_sentences, target_sentences):
     """
-    Create a matching matrix using sentence embeddings from multilingual-e5-base-instruct.
+    Create a matching matrix using sentence embeddings from multilingual-e5-large-instruct.
+    Following the Hugging Face model card example.
     """
+    task = "Retrieve semantically similar text."
+
     if not source_sentences or not target_sentences:
         raise ValueError("Both source_sentences and target_sentences must be non-empty lists.")
 
-    # Load instruct model and tokenizer
+    # Prepare queries (target sentences with instruct format)
+    queries = [get_detailed_instruct(task, sentence) for sentence in target_sentences]
+
+    # Load instruct model
     model_name = "intfloat/multilingual-e5-large-instruct"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
+    model = SentenceTransformer(model_name) 
 
-    def encode_sentences(sentences, prefix):
-        """
-        Encode sentences with instruct prefixes and return embeddings.
-        """
-        prefixed = [f"{prefix} {s}" for s in sentences]
-        inputs = tokenizer(
-            prefixed,
-            padding=True,
-            truncation=True,
-            return_tensors="pt"
-        )
-        with torch.no_grad():
-            outputs = model(**inputs)
-        return outputs.last_hidden_state.mean(dim=1).cpu().numpy()
+    # input_texts = queries + source_sentences
 
-    # Encode sentences with appropriate prompts
-    source_embeddings = encode_sentences(source_sentences, "passage:")
-    target_embeddings = encode_sentences(target_sentences, "query:")
+    # embeddings = model.encode(input_texts, convert_to_tensor=True, normalize_embeddings=True)
+    # num_queries = len(target_sentences)
+    # scores = (embeddings[:num_queries] @ embeddings[num_queries:].T) * 100
+    
+    source_embeddings = model.encode(source_sentences, convert_to_tensor=True, normalize_embeddings=True)
+    target_embeddings = model.encode(queries, convert_to_tensor=True, normalize_embeddings=True)
 
-    if source_embeddings.size == 0 or target_embeddings.size == 0:
-        raise ValueError("Failed to compute embeddings. Ensure input sentences are valid.")
+    scores = target_embeddings @ source_embeddings.T
 
-    # Compute cosine similarity matrix
-    matching_matrix = cosine_similarity(target_embeddings, source_embeddings)
-
-    # Normalize rows
-    row_max = matching_matrix.max(axis=1, keepdims=True)
-    normalized_matrix = matching_matrix / np.where(row_max == 0, 1, row_max)
-
-    return source_sentences, target_sentences, matching_matrix, normalized_matrix
-
+    return source_sentences, target_sentences, scores.cpu().numpy()
 

@@ -19,9 +19,13 @@ from sklearn.metrics import f1_score, accuracy_score
 import ot
 from math import log as ln
 from torch.distributions import Categorical
-import nltk
 from sentence_transformers import SentenceTransformer, util
-nltk.download('punkt_tab')
+from typing import Optional
+import gc
+
+
+# import nltk
+# nltk.download('punkt_tab')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -45,7 +49,7 @@ def get_train_test_split(
     summaries: list[dict[str, Any]],
     split_type: str,
     source_type: str,
-    test_size: float | None = None,
+    test_size: Optional[float] = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if split_type.lower() == "random":
         if test_size is not None:
@@ -102,39 +106,39 @@ def split_into_sentences(text):
     sentences = [sent.strip() for sent in re.split(separators, text) if sent.strip()]
     return sentences
 
-def smart_split_by_similarity(text, similarity_threshold=0.8): # Threshold needs tuning
-    # 1. Standard split
-    sentences = nltk.sent_tokenize(text)
+# def smart_split_by_similarity(text, similarity_threshold=0.8): # Threshold needs tuning
+#     # 1. Standard split
+#     sentences = nltk.sent_tokenize(text)
 
-    if not sentences:
-        return []
+#     if not sentences:
+#         return []
 
-    # 2. Load a sentence transformer model
-    model = SentenceTransformer('all-MiniLM-L6-v2') # A good general-purpose model
+#     # 2. Load a sentence transformer model
+#     model = SentenceTransformer('all-MiniLM-L6-v2') # A good general-purpose model
 
-    # 3. Get embeddings for all sentences
-    embeddings = model.encode(sentences, convert_to_tensor=True)
+#     # 3. Get embeddings for all sentences
+#     embeddings = model.encode(sentences, convert_to_tensor=True)
 
-    smart_segments = []
-    current_segment = sentences[0]
+#     smart_segments = []
+#     current_segment = sentences[0]
 
-    # 4. Iterate and decide whether to merge based on similarity
-    for i in range(len(sentences) - 1):
-        # Calculate similarity between sentence i and sentence i+1
-        similarity = util.cos_sim(embeddings[i], embeddings[i+1]).item()
+#     # 4. Iterate and decide whether to merge based on similarity
+#     for i in range(len(sentences) - 1):
+#         # Calculate similarity between sentence i and sentence i+1
+#         similarity = util.cos_sim(embeddings[i], embeddings[i+1]).item()
 
-        if similarity > similarity_threshold:
-            # Sentences are similar enough, merge them
-            current_segment += " " + sentences[i+1] # Or however you want to join
-        else:
-            # Not similar enough, end the current segment and start a new one
-            smart_segments.append(current_segment)
-            current_segment = sentences[i+1]
+#         if similarity > similarity_threshold:
+#             # Sentences are similar enough, merge them
+#             current_segment += " " + sentences[i+1] # Or however you want to join
+#         else:
+#             # Not similar enough, end the current segment and start a new one
+#             smart_segments.append(current_segment)
+#             current_segment = sentences[i+1]
 
-    # Add the last segment
-    smart_segments.append(current_segment)
+#     # Add the last segment
+#     smart_segments.append(current_segment)
 
-    return smart_segments
+#     return smart_segments
 
 def ensure_output_dir():
     """Create output directory if it doesn't exist."""
@@ -197,13 +201,122 @@ def get_dataset_length(dataset):
     else:
         raise ValueError(f"Unexpected dataset format: {type(dataset)}")
 
-def process_and_display_results(dataset, match_fn, dataset_name, save_matches=False, threshold=0.8, top_k_matches=1):
+# def process_and_display_results(dataset, match_fn, dataset_name, save_matches=False, threshold=0.8, top_k_matches=1):
+#     """Process and display results for article matching and save to CSV."""
+#     results_data = []
+#     metadata_data = []  
+
+#     # define namedtuple
+#     # Match = namedtuple('Match', ['summary_sentence', 'article_sentences'])
+#     Match = namedtuple('Match', [
+#         'summary_sentence', 
+#         'article_sentences',
+#         'emd',
+#         'emd_mean',
+#         'kl_divergences',
+#         'kl_mean',
+#         'summary_stance',
+#         'summary_stance_score',
+#         'article_stances',
+#         'article_stance_scores'
+#     ])
+#     matches = []
+
+#     dataset_length = get_dataset_length(dataset)
+#     # num_articles_to_process = min(num_articles, dataset_length)
+
+#     # print("\nArticle Matching Results")
+#     # print(f"Processing {num_articles_to_process} articles out of {dataset_length} total articles")
+
+#     # for idx in range(dataset_length):
+#     for idx in range(451):
+#         # print(f"\nArticle {idx + 1}")
+
+#         try:
+#             article, summary = process_dataset_item(dataset, idx)
+
+#             source_chunks = split_into_sentences(article)
+#             target_chunks = split_into_sentences(summary)
+
+#             # source_chunks = smart_split_by_similarity(article)
+#             # target_chunks = smart_split_by_similarity(summary)
+
+#             if not source_chunks or not target_chunks:
+#                 print(f"Warning: Empty chunks found for article {idx + 1}, skipping...")
+#                 continue
+
+#             results = match_fn(source_chunks, target_chunks)
+#             source, target, matching_matrix = results
+
+#             # matching_df = pd.DataFrame(
+#             #     matching_matrix,
+#             #     index=[f"Target {i + 1}" for i in range(len(target_chunks))],
+#             #     columns=[f"Source {j + 1}" for j in range(len(source_chunks))]
+#             # )
+#             # print("Matching Matrix:")
+#             # print(matching_df)
+
+#             # Prepare results data
+#             for i, target_sentence in enumerate(target_chunks):
+#                 best_matches = []
+#                 # best_matches_scores = []
+#                 for j, source_sentence in enumerate(source_chunks):
+#                     if matching_matrix[i, j] >= threshold:
+#                         best_matches.append((source_sentence, matching_matrix[i, j]))
+#                         # best_matches_scores.append(matching_matrix[i, j])
+#                 best_matches = sorted(best_matches, key=lambda x: x[1], reverse=True)[:top_k_matches]
+#                 match = Match(
+#                     summary_sentence=target_sentence, 
+#                     article_sentences=best_matches,
+#                     emd=None,
+#                     emd_mean=None,
+#                     kl_divergences=None,       # Default to None
+#                     kl_mean=None,              # Default to None
+#                     summary_stance=None,       # Default to None
+#                     summary_stance_score=None, # Default to None
+#                     article_stances=None,      # Default to None
+#                     article_stance_scores=None # Default to None
+#                 )
+                
+#                 matches.append(match)
+#                 results_data.append({
+#                     "Article": article,
+#                     "Summary": summary,
+#                     "Sentence in Summary": target_sentence,
+#                     "Best Match Sentences From Article": best_matches,
+#                     # "Best Match Score": best_matches_scores,
+#                 })
+
+#             # Prepare metadata
+#             metadata_data.append({
+#                 "Article_ID": idx,
+#                 "Num_Source_Sentences": len(source_chunks),
+#                 "Num_Target_Sentences": len(target_chunks),
+#                 "Average_Match_Score": matching_matrix.mean(),
+#                 "Max_Match_Score": matching_matrix.max(),
+#                 "Min_Match_Score": matching_matrix.min()
+#             })
+
+#         except Exception as e:
+#             print(f"Error processing Article {idx + 1}: {str(e)}")
+#             continue
+
+#     # Save results and metadata
+#     # if save_matches and results_data:
+#     #     save_results(results_data, dataset_name, "results")
+#     #     save_results(metadata_data, dataset_name, "metadata")
+
+#     return matches, results_data
+
+
+def process_and_display_results(dataset, match_fn, dataset_name, save_matches=False, threshold=0.8, top_k_matches=1, chunk_size=7):
     """Process and display results for article matching and save to CSV."""
     results_data = []
-    metadata_data = []  
+    metadata_data = []
+    length = 50
+    num_chunks = (length + chunk_size - 1) // chunk_size  
 
     # define namedtuple
-    # Match = namedtuple('Match', ['summary_sentence', 'article_sentences'])
     Match = namedtuple('Match', [
         'summary_sentence', 
         'article_sentences',
@@ -218,91 +331,78 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
     ])
     matches = []
 
-    dataset_length = get_dataset_length(dataset)
-    # num_articles_to_process = min(num_articles, dataset_length)
+    for chunk_idx in range(num_chunks):
+        start_idx = chunk_idx * chunk_size
+        end_idx = min((chunk_idx + 1) * chunk_size, length)
+        print(f"Processing articles {start_idx + 1} to {end_idx}")
 
-    # print("\nArticle Matching Results")
-    # print(f"Processing {num_articles_to_process} articles out of {dataset_length} total articles")
+        for idx in range(start_idx, end_idx):
+            try:
+                article, summary = process_dataset_item(dataset, idx)
+                source_chunks = split_into_sentences(article)
+                target_chunks = split_into_sentences(summary)
 
-    # for idx in range(dataset_length):
-    for idx in range(10):
-        # print(f"\nArticle {idx + 1}")
+                if not source_chunks or not target_chunks:
+                    print(f"Warning: Empty chunks found for article {idx + 1}, skipping...")
+                    continue
 
-        try:
-            article, summary = process_dataset_item(dataset, idx)
+                results = match_fn(source_chunks, target_chunks)
+                source, target, matching_matrix = results
 
-            source_chunks = split_into_sentences(article)
-            target_chunks = split_into_sentences(summary)
+                # Prepare results data
+                for i, target_sentence in enumerate(target_chunks):
+                    best_matches = []
+                    for j, source_sentence in enumerate(source_chunks):
+                        if matching_matrix[i, j] >= threshold:
+                            best_matches.append((source_sentence, matching_matrix[i, j]))
+                    best_matches = sorted(best_matches, key=lambda x: x[1], reverse=True)[:top_k_matches]
+                    match = Match(
+                        summary_sentence=target_sentence, 
+                        article_sentences=best_matches,
+                        emd=None,
+                        emd_mean=None,
+                        kl_divergences=None,
+                        kl_mean=None,
+                        summary_stance=None,
+                        summary_stance_score=None,
+                        article_stances=None,
+                        article_stance_scores=None
+                    )
+                    
+                    matches.append(match)
+                    results_data.append({
+                        "Article": article,
+                        "Summary": summary,
+                        "Sentence in Summary": target_sentence,
+                        "Best Match Sentences From Article": best_matches,
+                    })
 
-            # source_chunks = smart_split_by_similarity(article)
-            # target_chunks = smart_split_by_similarity(summary)
-
-            if not source_chunks or not target_chunks:
-                print(f"Warning: Empty chunks found for article {idx + 1}, skipping...")
-                continue
-
-            results = match_fn(source_chunks, target_chunks)
-            source, target, matching_matrix, _ = results
-
-            # matching_df = pd.DataFrame(
-            #     matching_matrix,
-            #     index=[f"Target {i + 1}" for i in range(len(target_chunks))],
-            #     columns=[f"Source {j + 1}" for j in range(len(source_chunks))]
-            # )
-            # print("Matching Matrix:")
-            # print(matching_df)
-
-            # Prepare results data
-            for i, target_sentence in enumerate(target_chunks):
-                best_matches = []
-                # best_matches_scores = []
-                for j, source_sentence in enumerate(source_chunks):
-                    if matching_matrix[i, j] >= threshold:
-                        best_matches.append((source_sentence, matching_matrix[i, j]))
-                        # best_matches_scores.append(matching_matrix[i, j])
-                best_matches = sorted(best_matches, key=lambda x: x[1], reverse=True)[:top_k_matches]
-                match = Match(
-                    summary_sentence=target_sentence, 
-                    article_sentences=best_matches,
-                    emd=None,
-                    emd_mean=None,
-                    kl_divergences=None,       # Default to None
-                    kl_mean=None,              # Default to None
-                    summary_stance=None,       # Default to None
-                    summary_stance_score=None, # Default to None
-                    article_stances=None,      # Default to None
-                    article_stance_scores=None # Default to None
-                )
-                
-                matches.append(match)
-                results_data.append({
-                    "Article": article,
-                    "Summary": summary,
-                    "Sentence in Summary": target_sentence,
-                    "Best Match Sentences From Article": best_matches,
-                    # "Best Match Score": best_matches_scores,
+                # Prepare metadata
+                metadata_data.append({
+                    "Article_ID": idx,
+                    "Num_Source_Sentences": len(source_chunks),
+                    "Num_Target_Sentences": len(target_chunks),
+                    "Average_Match_Score": matching_matrix.mean(),
+                    "Max_Match_Score": matching_matrix.max(),
+                    "Min_Match_Score": matching_matrix.min()
                 })
 
-            # Prepare metadata
-            metadata_data.append({
-                "Article_ID": idx,
-                "Num_Source_Sentences": len(source_chunks),
-                "Num_Target_Sentences": len(target_chunks),
-                "Average_Match_Score": matching_matrix.mean(),
-                "Max_Match_Score": matching_matrix.max(),
-                "Min_Match_Score": matching_matrix.min()
-            })
+            except Exception as e:
+                print(f"Error processing Article {idx + 1}: {str(e)}")
+                continue
 
-        except Exception as e:
-            print(f"Error processing Article {idx + 1}: {str(e)}")
-            continue
+        # Save intermediate results after each chunk
+        if save_matches and results_data:
+            save_results(results_data, dataset_name, f"results_chunk_{chunk_idx}")
+            save_results(metadata_data, dataset_name, f"metadata_chunk_{chunk_idx}")
 
-    # Save results and metadata
-    if save_matches and results_data:
-        save_results(results_data, dataset_name, "results")
-        save_results(metadata_data, dataset_name, "metadata")
+        # Clear GPU cache and Python garbage
+        torch.cuda.empty_cache()
+        gc.collect()
 
-    return matches
+    return matches, results_data
+
+
 
 # --------------------------------------------------------------- pipeline functions ---------------------------------------------------------------
 def load_matching_matrix(csv_path):

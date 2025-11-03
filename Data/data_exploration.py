@@ -354,12 +354,45 @@ if __name__ == "__main__":
 
 
     # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    new_data = pd.read_csv('./Data/datasets/HF_Gen_data.csv')
-    print("Loaded CSV file successfully.")
-    # new_data['Topic'] = new_data['Topic'].replace('תקשורת_نייטרלי', 'תקשורת_נייטרלי')
-    # new_data['Topic'] = new_data['topic'] + '_' + new_data['stance']
-    # new_data = new_data.rename(columns={'sentence': 'Text'})
+    # new_data = pd.read_csv('./Data/datasets/HF_Gen_data.csv')
+    # print("Loaded CSV file successfully.")
+    # # new_data['Topic'] = new_data['Topic'].replace('תקשורת_نייטרלי', 'תקשורת_נייטרלי')
+    # # new_data['Topic'] = new_data['topic'] + '_' + new_data['stance']
+    # # new_data = new_data.rename(columns={'sentence': 'Text'})
     
 
-    print(new_data.head())
-    new_data.to_csv('./Data/datasets/HF_Gen_data.csv', index=False)
+    # print(new_data.head())
+    # new_data.to_csv('./Data/datasets/HF_Gen_data.csv', index=False)
+
+    # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    # df = pd.read_csv('./Data/datasets/Hebrew_stance_dataset_modified.csv')
+    # print("Loaded CSV file successfully.")
+
+    # # Map 'support' to 'תומך' in the Stance column
+    # stance_mapping = {'תומך': 'בעד', 'מתנגד': 'נגד', 'נייטרלי': 'נייטרלי'}
+    # df['Stance'] = df['Stance'].map(stance_mapping)
+
+    # new_df = pd.DataFrame(columns=['sentence','topic','stance'])
+    # new_df['sentence'] = df['Text']
+    # new_df['topic'] = df['Sub-topic']
+    # new_df['stance'] = df['Stance']
+
+    # # Save the transformed data
+    # new_df.to_csv('./Data/topic_stance_dataset_synthetic.csv', index=False)
+    # print("Transformed CSV file has been created successfully.")
+
+    # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    # df1 = pd.read_csv('./Data/topic_stance_dataset_synthetic.csv')
+    # df2 = pd.read_csv('./Data/topic_stance_dataset.csv')
+    # print("Loaded CSV files successfully.")
+    # combined_df = pd.concat([df1, df2], ignore_index=True)
+    # combined_df = combined_df.drop_duplicates(subset=['sentence', 'topic', 'stance'], keep='first')
+    # combined_df.to_csv('./Data/topic_stance_dataset_combined.csv', index=False)
+    # print(f"Combined dataset contains {len(combined_df)} rows")
+
+    df_comb = pd.read_csv('./Data/topic_stance_dataset_combined.csv')
+    # shuffle the dataframe
+    df_comb = df_comb.sample(frac=1).reset_index(drop=True)
+    # save the shuffled dataframe
+    df_comb.to_csv('./Data/topic_stance_dataset_combined_shuffled.csv', index=False)
+    print(f"Shuffled dataset contains {len(df_comb)} rows")

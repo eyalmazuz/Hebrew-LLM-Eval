@@ -171,6 +171,75 @@ def preprocess(example, tokenizer, label2id):
     return inputs
 
 
+def split_data_with_topic_exclusion(data, exclude_topics=["חופש ביטוי"], random_state=42):
+    """
+    Split data ensuring that the specified topics are only in the test set.
+    
+    Args:
+        data: List of tuples (sentence, topic, label)
+        exclude_topics: List of topics to exclude from train/validation sets
+        random_state: Random state for reproducibility
+    
+    Returns:
+        train_data, eval_data, test_data
+    """
+    # Convert to list if single topic is passed as string
+    if isinstance(exclude_topics, str):
+        exclude_topics = [exclude_topics]
+    
+    # Separate data by topic
+    excluded_topic_data = [item for item in data if item[1] in exclude_topics]
+    other_topics_data = [item for item in data if item[1] not in exclude_topics]
+    
+    print(f"Total samples: {len(data)}")
+    print(f"Samples with excluded topics {exclude_topics}: {len(excluded_topic_data)}")
+    print(f"Samples with other topics: {len(other_topics_data)}")
+    
+    # Print breakdown by excluded topic
+    for topic in exclude_topics:
+        topic_count = len([item for item in data if item[1] == topic])
+        print(f"  - '{topic}': {topic_count} samples")
+    
+    # Check if we have enough data for the excluded topics
+    if len(excluded_topic_data) == 0:
+        raise ValueError(f"No data found for topics {exclude_topics}")
+    
+    # Split other topics data into train and validation
+    if len(other_topics_data) == 0:
+        raise ValueError("No data available for training after excluding the specified topics")
+    
+    # Get labels for stratification (only for other topics)
+    other_labels = [item[2] for item in other_topics_data]
+    
+    # Check if we have enough samples for stratified split
+    label_counts = Counter(other_labels)
+    min_count = min(label_counts.values())
+    if min_count < 2:
+        print("Warning: Some labels have very few samples. Using random split instead of stratified split.")
+        train_data, eval_data = train_test_split(
+            other_topics_data, 
+            test_size=0.2, 
+            random_state=random_state
+        )
+    else:
+        # Split other topics: 80% train, 20% validation
+        train_data, eval_data = train_test_split(
+            other_topics_data, 
+            test_size=0.2, 
+            random_state=random_state, 
+            stratify=other_labels
+        )
+    
+    # All excluded topic data goes to test set
+    test_data = excluded_topic_data
+    
+    print(f"Train set size: {len(train_data)} (topics: {set(item[1] for item in train_data)})")
+    print(f"Validation set size: {len(eval_data)} (topics: {set(item[1] for item in eval_data)})")
+    print(f"Test set size: {len(test_data)} (topics: {set(item[1] for item in test_data)})")
+    
+    return train_data, eval_data, test_data
+
+
 if __name__ == "__main__":
     print(f"Using device: {device}")
     print(f"CUDA available: {torch.cuda.is_available()}")
@@ -178,7 +247,7 @@ if __name__ == "__main__":
         print(f"CUDA device count: {torch.cuda.device_count()}")
         print(f"Current CUDA device: {torch.cuda.current_device()}")
 
-    # python -m scripts.stance_detection_model --data ./Data/topic_stance_dataset.csv --output_dir ./models/stance_detection_model 
+    # python -m scripts.stance_detection_model --data ./Data/topic_stance_dataset.csv --output_dir ./models/stance_detection_model --exclude_topic "חופש ביטוי"
     parser = argparse.ArgumentParser(description="Fine-Tune dictalm2.0.")
     parser.add_argument("--data", type=str, required=True, help="Dataset path ('./Data/topic_stance_dataset.csv').")
     parser.add_argument("--model", type=str, default="dicta-il/dictabert-sentiment", help="Model name for finetuning.")
@@ -187,7 +256,14 @@ if __name__ == "__main__":
     parser.add_argument("--method", type=str, default="weighted", help="Method for training (e.g., weighted, balanced).")
     parser.add_argument("--num_classes", type=int, default=2, help="Number of classes to give weight to.")
     parser.add_argument("--quick_test", action="store_true", help="Run with reduced settings for testing")
+    parser.add_argument("--exclude_topic", type=str, default="חופש ביטוי", help="Topic(s) to exclude from training and validation sets. Use comma-separated list for multiple topics.")
     args = parser.parse_args()
+
+    # Parse exclude_topic argument - can be single topic or comma-separated list
+    if args.exclude_topic:
+        exclude_topics = [topic.strip() for topic in args.exclude_topic.split(',')]
+    else:
+        exclude_topics = ["חופש ביטוי"]
 
     # ------------------------------------------------------------------------ 
     # Loading the model 
@@ -213,19 +289,32 @@ if __name__ == "__main__":
         df = pd.read_csv(path_to_csv)
         print(f"Dataset loaded successfully. Total samples: {len(df)}")
 
+        # Print topic distribution before filtering
+        print("\nTopic distribution in full dataset:")
+        print(df['topic'].value_counts())
+
         sentences = df["sentence"].tolist()
         topics = df["topic"].tolist()  
         labels = df["stance"].tolist()  # בעד / נגד / ניטרלי
 
         data = list(zip(sentences, topics, labels))
 
-        # Split data
-        train_data, temp_data = train_test_split(data, test_size=0.2, random_state=42, stratify=[x[2] for x in data])
-        eval_data, test_data = train_test_split(temp_data, test_size=0.5, random_state=42, stratify=[x[2] for x in temp_data])
+        # Split data with topic exclusion
+        print(f"\nExcluding topics {exclude_topics} from training and validation sets...")
+        train_data, eval_data, test_data = split_data_with_topic_exclusion(
+            data, 
+            exclude_topics=exclude_topics,
+            random_state=42
+        )
 
         train_sentences, train_topics, train_labels = zip(*train_data)
         eval_sentences, eval_topics, eval_labels = zip(*eval_data)
         test_sentences, test_topics, test_labels = zip(*test_data)
+
+        # Print label distribution in each set
+        print(f"\nLabel distribution in training set: {Counter(train_labels)}")
+        print(f"Label distribution in validation set: {Counter(eval_labels)}")
+        print(f"Label distribution in test set: {Counter(test_labels)}")
 
         # Create HuggingFace datasets
         train_dataset = Dataset.from_dict({"sentence": train_sentences, "topic": train_topics, "stance": train_labels})
@@ -245,6 +334,24 @@ if __name__ == "__main__":
         # output_dir = './models/stance_detection'
         output_dir = args.output_dir
         os.makedirs(output_dir, exist_ok=True)
+
+        # Save experiment info
+        experiment_info = {
+            "excluded_topics": exclude_topics,
+            "train_size": len(train_dataset),
+            "eval_size": len(eval_dataset),
+            "test_size": len(test_dataset),
+            "train_topics": list(set(train_topics)),
+            "eval_topics": list(set(eval_topics)),
+            "test_topics": list(set(test_topics)),
+            "train_label_distribution": dict(Counter(train_labels)),
+            "eval_label_distribution": dict(Counter(eval_labels)),
+            "test_label_distribution": dict(Counter(test_labels))
+        }
+        
+        import json
+        with open(os.path.join(output_dir, "experiment_info.json"), "w", encoding="utf-8") as f:
+            json.dump(experiment_info, f, ensure_ascii=False, indent=2)
 
         if args.quick_test:
             print("Running in QUICK TEST mode")
@@ -407,8 +514,18 @@ if __name__ == "__main__":
         
         # Save test results
         with open(os.path.join(output_dir, "model_test_results.txt"), "w") as f:
+            f.write(f"Experiment: Excluded topics {exclude_topics} from training\n")
+            f.write("="*50 + "\n")
             for key, value in test_results.items():
                 f.write(f"{key}: {value}\n")
+            f.write("\nDataset splits:\n")
+            f.write(f"Train topics: {list(set(train_topics))}\n")
+            f.write(f"Test topics: {list(set(test_topics))}\n")
+
+        print(f"\nExperiment completed!")
+        print(f"The model was trained without seeing topics {exclude_topics}")
+        print(f"Test evaluation was performed only on topics {exclude_topics}")
+        print(f"This tests the model's ability to generalize to unseen topics.")
 
     except Exception as e:
         print(f"Error during training: {e}")
