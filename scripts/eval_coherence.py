@@ -1,3 +1,15 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = [
+#   "transformers",
+#   "torch",
+#   "tqdm",
+#   "pandas",
+#   "numpy",
+#   "nltk",
+# ]
+# ///
+
 import argparse
 import json
 import math
