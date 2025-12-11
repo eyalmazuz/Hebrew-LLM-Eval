@@ -20,6 +20,7 @@ from transformers import (
     BitsAndBytesConfig,
     AutoModelForCausalLM
     )
+from peft import PeftModel
 import torch
 from scripts.topic_detection import get_topic_for_model
 import numpy as np
@@ -34,6 +35,68 @@ if __name__ == '__main__':
     parser.add_argument("--save-matches", action="store_true", help="Save matching results to CSV.")
     parser.add_argument("--output-dir", default="./scripts/output/stance_preservation_test.json", help="Save stance preservation results to JSON.")
     args = parser.parse_args()
+
+    # Topic detection setup
+    print("Setting up topic detection model...")
+    quant_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,  
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",  
+    )    
+    # topic_model = AutoModelForCausalLM.from_pretrained('dicta-il/dictalm2.0', device_map='cuda', quantization_config=quant_config)
+    # topic_tokenizer = AutoTokenizer.from_pretrained('dicta-il/dictalm2.0')
+    
+    # # Fix tokenizer configuration
+    # if topic_tokenizer.pad_token is None:
+    #     topic_tokenizer.pad_token = topic_tokenizer.eos_token
+
+    # quant_config_8 = BitsAndBytesConfig(
+    #     load_in_8bit=True,
+    #     llm_int8_threshold=6.0,           # handles outlier values
+    #     llm_int8_has_fp16_weight=False    # keep weights in int8
+    # )
+    # topic_tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-9b")
+    # topic_model = AutoModelForCausalLM.from_pretrained(
+    #     "google/gemma-2-9b",
+    #     device_map="auto",
+    #     quantization_config=quant_config_8,
+    # )
+
+    # Fine-tuned dicta model for topic detection
+    base_model_name = "dicta-il/dictalm2.0"
+
+    base_model = AutoModelForCausalLM.from_pretrained(
+        base_model_name,
+        device_map="cuda",
+        quantization_config=quant_config
+    )
+
+    topic_tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+
+    if topic_tokenizer.pad_token is None:
+        topic_tokenizer.pad_token = topic_tokenizer.eos_token
+
+    lora_model_path = "./models/results_topic_detection/final_adapters/"
+
+    topic_model = PeftModel.from_pretrained(
+        base_model,
+        lora_model_path,
+        device_map="auto"
+    )
+
+    # topic_model.print_trainable_parameters()
+
+    # print(type(topic_model))
+    # print(topic_model.peft_config)
+
+
+    # for name, _ in topic_model.named_parameters():
+    #     if "lora" in name.lower():
+    #         print(name)
+
+    topic_model.eval()
+
 
     try:
         # Ensure output directory exists
@@ -54,21 +117,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Fatal error: {str(e)}")
         raise
-    
-    # Topic detection setup
-    print("Setting up topic detection model...")
-    quant_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,  
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",  
-    )    
-    topic_model = AutoModelForCausalLM.from_pretrained('dicta-il/dictalm2.0', device_map='cuda', quantization_config=quant_config)
-    topic_tokenizer = AutoTokenizer.from_pretrained('dicta-il/dictalm2.0')
-    
-    # Fix tokenizer configuration
-    if topic_tokenizer.pad_token is None:
-        topic_tokenizer.pad_token = topic_tokenizer.eos_token
     
     # Process sentences for topic detection
     print("Processing sentences for topic detection...")

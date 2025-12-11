@@ -20,7 +20,9 @@ if __name__ == "__main__":
     # test_path = "./tests/output/labeled_data_with_soft_scores.csv"
     # model_output_path = "./scripts/output/test_merged.csv"
     # model_output_path = "./scripts/output/test_entropy_merged.csv"
-    model_output_path = "./scripts/output/test_topic_merged.csv"
+    # model_output_path = "./scripts/output/test_topic_merged.csv"
+    model_output_path = "./scripts/output/fine_tuned_test_merged.csv"
+
 
     # Load CSVs
     test_df = pd.read_csv(test_path)
