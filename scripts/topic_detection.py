@@ -106,7 +106,7 @@ from src.utils import split_into_sentences
 #     }
 
 
-def get_topic_for_model(context, hebrew_sentence, model, tokenizer):
+def get_topic_for_model(context, hebrew_sentence, model, tokenizer, topic_detection_model):
     """Get topic for a Hebrew sentence using the model."""
     dynamic_examples = [
         {
@@ -179,92 +179,35 @@ def get_topic_for_model(context, hebrew_sentence, model, tokenizer):
         + f"\n\nמשפט: {hebrew_sentence}\nניתוח:\nנושא:"
     ).strip()
 
-    # Encode PROMPT ONLY
-    inputs = tokenizer(final_prompt, return_tensors="pt").to(model.device)
-    prompt_length = inputs.input_ids.shape[1]
+    # finetuned dont need few shots
+    finetuned_prompt = (
+        base_prompt
+        + "\n\nקונטקסט:" + context
+        + f"\n\nמשפט: {hebrew_sentence}\nניתוח:\nנושא:"
+    ).strip()
+    
+    if topic_detection_model == 'finetuned':
+        # Encode PROMPT ONLY
+        inputs = tokenizer(finetuned_prompt, return_tensors="pt").to(model.device)
+        prompt_length = inputs.input_ids.shape[1]
 
-    # Generate continuation
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=20,
-            do_sample=False,
-        )
+        # Generate continuation
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=20,
+                do_sample=False,
+            )
 
-    # Extract only the generated tokens
-    new_tokens = outputs[0][prompt_length:]
-    topic = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        # Extract only the generated tokens
+        new_tokens = outputs[0][prompt_length:]
+        topic = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
-    # Only return first line (the topic)
-    topic = topic.split("\n")[0].strip()
+        # Only return first line (the topic)
+        topic = topic.split("\n")[0].strip()
 
-    return {"sentence": hebrew_sentence, "topic": topic}
-
-    # final_prompt = (
-    #     base_prompt
-    #     + "\n\nקונטקסט:" + context
-    #     + "\n\nדוגמאות:\n" + examples_prompt
-    #     + f"\n\nמשפט: {hebrew_sentence}\nניתוח:\nנושא:"
-    # )
-
-    # # Build chat messages
-    # messages = [{"role": "user", "content": final_prompt}]
-
-    # # IMPORTANT: tokenize=True
-    # inputs = tokenizer.apply_chat_template(
-    #     messages,
-    #     return_tensors="pt",
-    #     tokenize=True,
-    #     add_generation_prompt=True   
-    # ).to(model.device)
-
-    # prompt_length = inputs.shape[1]
-
-    # outputs = model.generate(
-    #     inputs,
-    #     max_new_tokens=20,
-    #     do_sample=False
-    # )
-
-    # # Slice away the prompt
-    # new_tokens = outputs[0][prompt_length:]
-    # topic = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
-
-    # # keep only the first line
-    # topic = topic.split("\n")[0].strip()
-
-    # return {"sentence": hebrew_sentence, "topic": topic}
-
-def get_topic(hebrew_sentence, model, tokenizer):
-    # split into sentences
-    sentences = split_into_sentences(hebrew_sentence)
-
-    res = []
-
-    for sentence in sentences:
-        prompt = f"""
-            המשימה שלך היא לזהות את נושא המשפט, הנושא לא תמיד יהיה כתוב במשפט.
-            תחזיר **רק** את הנושא בלי מילים נוספות או הסברים.
-
-            לדוגמה:
-            משפט: אני לא מתכוון להצביע בבחירות הקרובות
-            נושא: בחירות
-
-            משפט: הילד שלי חלה אחרי החיסון, אני לא מתכוונת לחסן שוב
-            נושא: חיסונים
-
-            משפט: עיתון "ידיעות אחרונות" נלחם על הזכות שלו לפרסם את המידע הזה
-            נושא: חופש העיתונות
-
-            משפט: בינימין נתניהו פוגע במדינת ישראל
-            נושא: בנימין נתניהו
-            
-            משפט: {sentence}
-            נושא:
-            """
-
-        # Encode the prompt
-        inputs = tokenizer(prompt.strip(), return_tensors='pt', padding=True).to(model.device)
+    elif topic_detection_model == 'dicta-il/dictalm2.0':
+        inputs = tokenizer(final_prompt.strip(), return_tensors='pt', padding=True).to(model.device)
         
         # Get the length of the prompt in tokens
         prompt_length = inputs.input_ids.shape[1]
@@ -275,7 +218,8 @@ def get_topic(hebrew_sentence, model, tokenizer):
                 inputs.input_ids,
                 attention_mask=inputs.attention_mask,
                 do_sample=False,
-                max_new_tokens=10
+                max_new_tokens=10,
+                # temperature=0.1
             )
         
         # Extract only the new tokens (excluding the prompt)
@@ -283,55 +227,42 @@ def get_topic(hebrew_sentence, model, tokenizer):
         
         # Decode only the topic tokens
         topic = tokenizer.decode(topic_tokens, skip_special_tokens=True).strip()
-        topic = topic.split("\n")[0] 
-        res.append({
-            "sentence": sentence,
-            "topic": topic
-        })
+        topic = topic.split("\n")[0]
+        # topic = topic.split("\n")[0].replace("נושא:", "").strip().rstrip(".").rstrip(":")
+        
     
-    return res
+    else:
+        final_prompt = (
+            base_prompt
+            + "\n\nקונטקסט:" + context
+            + "\n\nדוגמאות:\n" + examples_prompt
+            + f"\n\nמשפט: {hebrew_sentence}\nניתוח:\nנושא:"
+        )
 
+        # Build chat messages
+        messages = [{"role": "user", "content": final_prompt}]
 
-# if __name__ == "__main__":
-#     quant_config = BitsAndBytesConfig(
-#         load_in_4bit=True,
-#         bnb_4bit_compute_dtype=torch.bfloat16,  # or torch.float16 if your hardware doesn't support bfloat16
-#         bnb_4bit_use_double_quant=True,
-#         bnb_4bit_quant_type="nf4",  # or "fp4"
-#     )    
-#     model = AutoModelForCausalLM.from_pretrained('dicta-il/dictalm2.0', device_map='cuda', quantization_config=quant_config)
-#     tokenizer = AutoTokenizer.from_pretrained('dicta-il/dictalm2.0')
-    
-#     # Fix tokenizer configuration
-#     if tokenizer.pad_token is None:
-#         tokenizer.pad_token = tokenizer.eos_token
-    
-#     data = load_data("biunlp/HeSum")
-    
-#     # Create a new file or clear the existing file before appending
-#     with open("scripts/output/topics.jsonl", "w", encoding="utf-8") as f:
-#         pass
-    
-#     # Process each sentence in the dataset
-#     total_sentences = len(data['summary'])
-#     print(f"Starting to process {total_sentences} sentences...")
-    
-#     for idx, sent in enumerate(data['summary']):
-#         try:
-#             # Get the topic for the current sentence
-#             res = get_topic(sent, model, tokenizer)
-            
-#             # Print progress every 10 sentences
-#             if idx % 10 == 0:
-#                 print(f"--------------------------- Processed {idx}/{total_sentences} sentences ---------------------------")
-            
-#             for r in res:
-#                 # Save into a JSONL file
-#                 with open("scripts/output/topics.jsonl", "a", encoding="utf-8") as f:
-#                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
-                
-#         except Exception as e:
-#             # Log errors without stopping the entire process
-#             print(f"Error processing sentence {idx}: {e}")
-#             with open("scripts/output/errors.log", "a", encoding="utf-8") as f:
-#                 f.write(f"Error at index {idx}: {str(e)}\nSentence: {sent}\n\n")
+        # IMPORTANT: tokenize=True
+        inputs = tokenizer.apply_chat_template(
+            messages,
+            return_tensors="pt",
+            tokenize=True,
+            add_generation_prompt=True   
+        ).to(model.device)
+
+        prompt_length = inputs.shape[1]
+
+        outputs = model.generate(
+            inputs,
+            max_new_tokens=20,
+            do_sample=False
+        )
+
+        # Slice away the prompt
+        new_tokens = outputs[0][prompt_length:]
+        topic = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+
+        # keep only the first line
+        topic = topic.split("\n")[0].strip()
+
+    return {"sentence": hebrew_sentence, "topic": topic}

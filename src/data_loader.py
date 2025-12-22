@@ -27,6 +27,13 @@ def preprocess_custom(file_path):
 
     return Dataset.from_dict({"article": articles, "summary": summaries})
 
+def preprocess_csv(file_path):
+    """Preprocess custom CSV dataset containing article and summary columns."""
+    dataset = load_dataset('csv', data_files=file_path)
+    if 'train' in dataset:
+        dataset = dataset['train']
+    # Use .get() to avoid KeyError if column is missing
+    return dataset.filter(lambda x: x["article"] and x["summary"])
 
 def load_data(dataset_name, dataset_path=None):
     """Load and preprocess dataset based on the type."""
@@ -34,6 +41,9 @@ def load_data(dataset_name, dataset_path=None):
         dataset = preprocess_hesum(dataset_name)
     elif dataset_name == "custom" and dataset_path:
         dataset = preprocess_custom(dataset_path)
+    elif dataset_path is not None:
+        dataset = preprocess_csv(dataset_path)
     else:
         raise ValueError("Invalid dataset name or missing dataset_path for custom data.")
     return dataset
+

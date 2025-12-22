@@ -8,7 +8,6 @@ import csv
 import pandas as pd
 from datasets import Dataset
 from collections import namedtuple
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -22,6 +21,14 @@ from torch.distributions import Categorical
 from sentence_transformers import SentenceTransformer, util
 from typing import Optional
 import gc
+from peft import PeftModel
+
+from transformers import (
+    AutoModelForSequenceClassification, 
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    AutoModelForCausalLM
+    )
 
 
 # import nltk
@@ -105,40 +112,6 @@ def split_into_sentences(text):
     separators = r"[■|•.\n]"
     sentences = [sent.strip() for sent in re.split(separators, text) if sent.strip()]
     return sentences
-
-# def smart_split_by_similarity(text, similarity_threshold=0.8): # Threshold needs tuning
-#     # 1. Standard split
-#     sentences = nltk.sent_tokenize(text)
-
-#     if not sentences:
-#         return []
-
-#     # 2. Load a sentence transformer model
-#     model = SentenceTransformer('all-MiniLM-L6-v2') # A good general-purpose model
-
-#     # 3. Get embeddings for all sentences
-#     embeddings = model.encode(sentences, convert_to_tensor=True)
-
-#     smart_segments = []
-#     current_segment = sentences[0]
-
-#     # 4. Iterate and decide whether to merge based on similarity
-#     for i in range(len(sentences) - 1):
-#         # Calculate similarity between sentence i and sentence i+1
-#         similarity = util.cos_sim(embeddings[i], embeddings[i+1]).item()
-
-#         if similarity > similarity_threshold:
-#             # Sentences are similar enough, merge them
-#             current_segment += " " + sentences[i+1] # Or however you want to join
-#         else:
-#             # Not similar enough, end the current segment and start a new one
-#             smart_segments.append(current_segment)
-#             current_segment = sentences[i+1]
-
-#     # Add the last segment
-#     smart_segments.append(current_segment)
-
-#     return smart_segments
 
 def ensure_output_dir():
     """Create output directory if it doesn't exist."""
@@ -313,7 +286,8 @@ def process_and_display_results(dataset, match_fn, dataset_name, save_matches=Fa
     """Process and display results for article matching and save to CSV."""
     results_data = []
     metadata_data = []
-    length = 50
+    # length = 50
+    length = get_dataset_length(dataset)
     num_chunks = (length + chunk_size - 1) // chunk_size  
 
     # define namedtuple
@@ -411,12 +385,6 @@ def load_matching_matrix(csv_path):
     print("Matching Matrix Loaded:")
     print(df.head())
     return df
-
-# def load_model(model_name):
-#     """Load the stance detection model and tokenizer."""
-#     model = AutoModelForSequenceClassification.from_pretrained(model_name)
-#     tokenizer = AutoTokenizer.from_pretrained(model_name)
-#     return model, tokenizer
 
 def classify_stance(sentences, model, tokenizer):
     """Classify stance (sentiment) for a list of sentences and return labels with probabilities."""
@@ -676,8 +644,8 @@ def compute_stance_preservation_with_topic(dataset, model, tokenizer):
             art_entropy = Categorical(probs=article_tensor).entropy()
             
             # Skip if entropy is too high (uncertain predictions)
-            if sum_entropy > ln(num_classes) / 2 or art_entropy > ln(num_classes) / 2:
-                continue
+            # if sum_entropy > ln(num_classes) / 2 or art_entropy > ln(num_classes) / 2:
+            #     continue
             
             # Calculate EMD (Earth Mover's Distance)
             model_probabilities_f64 = np.asarray(summary_probs, dtype=np.float64)
@@ -709,6 +677,73 @@ def compute_stance_preservation_with_topic(dataset, model, tokenizer):
             continue
     
     return results
+
+
+def load_topic_model(model_name):
+    print("Setting up topic detection model...")
+
+    quant_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,  
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",  
+        ) 
+    
+    
+    quant_config_8 = BitsAndBytesConfig(
+        load_in_8bit=True,
+        llm_int8_threshold=6.0,          
+        llm_int8_has_fp16_weight=False    
+    )
+    
+    if model_name == 'dicta-il/dictalm2.0':
+        # Topic detection setup
+        topic_model = AutoModelForCausalLM.from_pretrained('dicta-il/dictalm2.0', device_map='cuda', quantization_config=quant_config)
+        topic_tokenizer = AutoTokenizer.from_pretrained('dicta-il/dictalm2.0')
+        
+        # Fix tokenizer configuration
+        if topic_tokenizer.pad_token is None:
+            topic_tokenizer.pad_token = topic_tokenizer.eos_token
+
+    
+    elif model_name == 'finetuned':
+        # Fine-tuned dicta model for topic detection
+        base_model_name = "dicta-il/dictalm2.0"
+
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_name,
+            device_map="cuda",
+            quantization_config=quant_config
+        )
+
+        topic_tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+
+        if topic_tokenizer.pad_token is None:
+            topic_tokenizer.pad_token = topic_tokenizer.eos_token
+
+        lora_model_path = "./models/results_topic_detection/final_adapters/"
+
+        topic_model = PeftModel.from_pretrained(
+            base_model,
+            lora_model_path,
+            device_map="auto"
+        )
+
+        topic_model.eval()
+
+    
+    else:
+        # model_name = "google/gemma-2-9b"
+        topic_tokenizer = AutoTokenizer.from_pretrained(model_name)
+        topic_model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            device_map="auto",
+            quantization_config=quant_config_8,
+        )
+
+    return topic_model, topic_tokenizer
+
+    
 
 # --------------------------------------------------------------- finetuning functions ---------------------------------------------------------------
 # Dataset class
@@ -909,3 +944,5 @@ def compute_metrics(p):
         'f1': f1_weighted,
         'f1_macro': f1_macro,
     }
+
+
